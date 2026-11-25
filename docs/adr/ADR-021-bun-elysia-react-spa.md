@@ -34,14 +34,17 @@ Drizzle migrations.
 
 This ADR stays Proposed until both of these exist:
 
-1. A green `npm run test` on the current Next.js app, after the 16 Content
-   draft integration failures are investigated and fixed according to the
-   actual product rule. Assertions are not flipped until that rule is written
-   down.
+1. A green full CI pipeline on the current Next.js app, including production
+   builds, Go checks while ADR-020 remains accepted, and Playwright. Investigate
+   and fix the 16 Content draft integration failures according to the actual
+   product rule. Assertions are not flipped until that rule is written down.
 2. A runtime spike report. The spike runs the checklist in the migration plan
    on Bun and on Node. The owner uses that report to choose the production
    runtime. Bun is the candidate. Node is the fallback if sharp, ffprobe, the
    SSRF client, Drizzle, Better Auth, S3, or the AvalAI SDK fails on Bun.
+   The report includes pinned-runtime execution evidence and comparable
+   measurements. If both pass, prefer Node unless Bun has a documented
+   material benefit. The owner explicitly selects the runtime and adapter.
 
 When this ADR is later accepted, the accepted shape is:
 
@@ -61,24 +64,30 @@ When this ADR is later accepted, the accepted shape is:
    email verification or password reset in the runtime cutover. Those are a
    later product change. Do not set `email_verified = true` on existing rows.
    An account that can sign in is not the same thing as a proven mailbox.
+   A later verification feature must enforce an explicit account-specific
+   policy at session issuance and protected API access; do not assume a global
+   library setting can implement grandfathering.
 4. Keep `api/openapi.yaml` as the only product contract. Generate the
    TypeScript client with `openapi-typescript` and call it with `openapi-fetch`.
-   Eden Treaty is not the client. Contract tests validate live responses
+   Eden Treaty is not the client. Contract tests validate live requests and responses
    against the OpenAPI schema. Zod remains the runtime validation library.
 5. Reach functional parity on the new processes while Idea and Content
    generation still finish inside the request, as they do today. Only after
-   that parity is demonstrated, move generation onto a new `ai_jobs` table.
-   The provider call stays outside any database transaction. External provider
-   execution is at-least-once only when the worker can prove the previous
-   attempt never started the call. An unknown provider outcome does not
-   automatically call AvalAI again.
+   that parity is demonstrated, prepare generation on a new `ai_jobs` table
+   for a separate production release after synchronous cutover and stabilization.
+   The provider call stays outside any database transaction. A fenced, durable
+   dispatch marker prevents automatic redispatch after an uncertain outcome.
+   Database-enforced workspace concurrency and atomic result/quota settlement
+   are required. Never promise exactly-once external execution.
 6. Keep English and Persian, locale-prefixed URLs, and logical CSS. Replace
    the Next.js integration of `next-intl` with `use-intl` and TanStack Router.
    Creator-content language stays independent of UI locale.
 7. Freeze Go feature work when this ADR is accepted. Cut traffic over in one
-   rehearsed switch with a written rollback. Delete the Next.js server and the
-   Go tree in a later pull request, after a stabilization window. Do not run
-   two writers for the same aggregate.
+   rehearsed synchronous switch with a written rollback. Drain all HTTP
+   mutations and worker claims, stop and fence old writers, and verify exclusive
+   ownership before starting new writers. Apply the same barrier in rollback.
+   Delete the Next.js server and Go tree in a later pull request only after the
+   measurable stabilization gates and owner approval. Retain rollback images.
 
 ## API, auth, and process boundary
 
@@ -89,8 +98,8 @@ reject a missing or untrusted `Origin`. A read that inserts a workspace is a
 state-changing route. `GET /workspaces/current` does not create a workspace.
 
 Better Auth identifies the user. Every private product operation also proves
-workspace membership and resource ownership. The SPA clears its query cache on
-sign-out, session expiry, and user change. A post-login redirect accepts only
+workspace membership and resource ownership. The SPA blocks protected rendering and clears its query cache on
+sign-out, session expiry, and user change, with late-response isolation. A post-login redirect accepts only
 a same-site locale path.
 
 The API and the worker share `packages/domain` and `packages/db`. `apps/web`
