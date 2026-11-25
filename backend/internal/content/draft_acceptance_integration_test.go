@@ -35,11 +35,20 @@ func TestDraftAcceptanceHistoryAndProductionViewsUseAcceptedSnapshot(t *testing.
 		t.Fatalf("stale Draft save error = %v, want conflict", err)
 	}
 
+	savedDetail, err := service.Detail(ctx, subject, target)
+	if err != nil {
+		t.Fatalf("read saved Draft: %v", err)
+	}
+	repeatedDraft, err := service.SaveDraft(ctx, subject, target, content.SaveDraftInput{BaseRevision: 2, Document: []byte(editedContentDocument)})
+	if err != nil || repeatedDraft.Revision != draft.Revision || !repeatedDraft.UpdatedAt.Equal(savedDetail.Draft.UpdatedAt) {
+		t.Fatalf("equal V4 save changed the Draft: before=%+v after=%+v err=%v", savedDetail.Draft, repeatedDraft, err)
+	}
+
 	accepted, err := service.Accept(ctx, subject, target, 2)
 	if err != nil {
 		t.Fatalf("accept Draft: %v", err)
 	}
-	if accepted.Draft.Revision != 2 || accepted.AcceptedVersion.VersionNumber != 2 || accepted.AcceptedVersion.Source != "CREATOR_ACCEPTED" {
+	if accepted.Draft.Revision != 2 || accepted.AcceptedVersion.VersionNumber != 2 || accepted.AcceptedVersion.Source != "CREATOR_ACCEPTED" || !containsJSON(accepted.AcceptedVersion.Document, `"schemaVersion":4`) {
 		t.Fatalf("accepted result = %+v", accepted)
 	}
 	acceptedAgain, err := service.Accept(ctx, subject, target, 2)

@@ -28,8 +28,9 @@ test("sign-up provisions a workspace, persists the session, switches locale, and
 }) => {
   await signUp(page, emailFor("sign-up"));
 
-  await expect(page.getByText("Workspace:")).toBeVisible();
-  await expect(page.getByText("Workspace: Personal workspace", { exact: true })).toBeVisible();
+  const banner = page.getByRole("banner");
+  await expect(banner.getByText("Workspace", { exact: true })).toBeVisible();
+  await expect(banner).toContainText("Personal workspace");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
 
@@ -37,7 +38,7 @@ test("sign-up provisions a workspace, persists the session, switches locale, and
   await expect(page).toHaveURL(/\/en\/dashboard$/);
   await expect(page.getByRole("heading", { name: "Your foundation is ready." })).toBeVisible();
 
-  await page.getByRole("link", { name: "فارسی" }).click();
+  await page.getByRole("link", { name: "فا", exact: true }).click();
   await expect(page).toHaveURL(/\/fa\/dashboard$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "fa");
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");

@@ -943,19 +943,23 @@ export function exportContentDocumentV3Recovery(
   assetPresentations: Readonly<
     Record<string, Readonly<{ displayName: string; mediaType: string }>>
   > = {},
-  labels: Readonly<{ attachedMedia: string; unavailable: string }> = {
+  labels: Readonly<{ attachedMedia: string; unavailable: string; searchQuery?: string }> = {
     attachedMedia: "Attached media",
     unavailable: "unavailable",
   },
 ): string {
-  const document = canonicalizeContentDocumentV3(input);
+  const parsed = contentDocumentSchema.parse(input);
+  const document =
+    parsed.schemaVersion === 4
+      ? canonicalizeContentDocumentV4(parsed)
+      : canonicalizeContentDocumentV3(parsed);
   const lines: string[] = ["Script"];
   for (const block of document.script.blocks) {
     lines.push(block.text);
     for (const direction of block.performanceDirections)
       lines.push(`Performance direction: ${describePerformanceDirection(direction)}`);
     for (const direction of block.editDirections) {
-      lines.push(`Edit direction: ${describeEditDirection(direction)}`);
+      lines.push(`Edit direction: ${describeEditDirection(direction, labels.searchQuery)}`);
       if ((direction.type === "BROLL_CUE" || direction.type === "SOUND_CUE") && direction.assetId) {
         const asset = assetPresentations[direction.assetId];
         lines.push(
@@ -994,7 +998,10 @@ function describePerformanceDirection(direction: PerformanceDirection): string {
   }
 }
 
-function describeEditDirection(direction: EditDirection): string {
+function describeEditDirection(
+  direction: EditDirection,
+  searchQueryLabel = "Search query",
+): string {
   switch (direction.type) {
     case "TEXT_OVERLAY":
       return appendNuance(
@@ -1007,7 +1014,7 @@ function describeEditDirection(direction: EditDirection): string {
       return appendNuance(`Cut (${direction.style})`, direction.nuance);
     case "BROLL_CUE":
       return appendNuance(
-        `B-roll cue: ${direction.description}${"searchQuery" in direction && direction.searchQuery ? `; Search query: ${direction.searchQuery}` : ""}`,
+        `B-roll cue: ${direction.description}${"searchQuery" in direction && direction.searchQuery ? `; ${searchQueryLabel}: ${direction.searchQuery}` : ""}`,
         direction.nuance,
       );
     case "SOUND_CUE":
@@ -1026,14 +1033,16 @@ export function contentDocumentsEqual(left: unknown, right: unknown): boolean {
   const leftDocument = parseContentDocument(left);
   const rightDocument = parseContentDocument(right);
 
-  if (leftDocument.schemaVersion === 2 && rightDocument.schemaVersion === 3)
-    return contentDocumentsEqual(projectContentDocumentV2ToV3(leftDocument), rightDocument);
-  if (leftDocument.schemaVersion === 3 && rightDocument.schemaVersion === 2)
-    return contentDocumentsEqual(leftDocument, projectContentDocumentV2ToV3(rightDocument));
-  if (leftDocument.schemaVersion === 3 && rightDocument.schemaVersion === 4)
-    return contentDocumentsEqual(projectContentDocumentV3ToV4(leftDocument), rightDocument);
-  if (leftDocument.schemaVersion === 4 && rightDocument.schemaVersion === 3)
-    return contentDocumentsEqual(leftDocument, projectContentDocumentV3ToV4(rightDocument));
+  if (
+    leftDocument.schemaVersion !== rightDocument.schemaVersion &&
+    leftDocument.schemaVersion !== 1 &&
+    rightDocument.schemaVersion !== 1
+  ) {
+    return contentDocumentsEqual(
+      projectContentDocumentToV4(leftDocument),
+      projectContentDocumentToV4(rightDocument),
+    );
+  }
 
   if (leftDocument.schemaVersion !== rightDocument.schemaVersion) return false;
 

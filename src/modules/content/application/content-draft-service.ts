@@ -19,7 +19,7 @@ import {
   contentDocumentsEqual,
   materializeContentDocumentV2,
   parseHumanContentScriptDraft,
-  projectContentDocumentToV3,
+  projectContentDocumentToV4,
   projectContentDocumentV3ToV2,
   projectContentDocumentV4ToV3,
   projectContentDocumentV2ToV3,
@@ -101,7 +101,7 @@ function toDraftDto(draft: ContentDraft): ContentDraftDto {
 
   return {
     document: document.data,
-    editorDocument: projectContentDocumentToV3(document.data),
+    editorDocument: projectContentDocumentToV4(document.data),
     v2Projection:
       document.data.schemaVersion === 1
         ? materializeContentDocumentV2(document.data)
@@ -206,7 +206,7 @@ export function createContentDraftApplicationService(
             document: storedDocument.data,
             createdByUserId: userId,
           });
-          documentToPersist = projectContentDocumentToV3(document);
+          documentToPersist = projectContentDocumentToV4(document);
         } else if (storedDocument.data.schemaVersion === 2) {
           if (document.schemaVersion === 1) {
             throw new ApplicationError(
@@ -227,6 +227,8 @@ export function createContentDraftApplicationService(
             "VALIDATION_ERROR",
             "A structured Content Draft requires a structured document.",
           );
+        } else if (contentDocumentsEqual(storedDocument.data, document)) {
+          return toDraftDto(target.draft);
         }
 
         await validateReferencedAssets(transaction, parsedInput.workspaceId, documentToPersist);

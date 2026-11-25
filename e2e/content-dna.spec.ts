@@ -71,7 +71,8 @@ test("creator can create, edit, inspect history, and recover from a stale save",
   const stalePage = await context.newPage();
   await stalePage.setViewportSize({ width: 390, height: 844 });
   await stalePage.goto("/en/content-dna");
-  await stalePage.getByRole("link", { name: "فارسی" }).click();
+  await stalePage.getByRole("banner").getByRole("button", { name: "Menu" }).click();
+  await stalePage.getByRole("dialog").getByRole("link", { name: "فا", exact: true }).click();
   await expect(stalePage).toHaveURL(/\/fa\/content-dna$/);
   await expect(stalePage.locator("html")).toHaveAttribute("lang", "fa");
   await expect(stalePage.locator("html")).toHaveAttribute("dir", "rtl");
@@ -193,7 +194,7 @@ test("protects dirty editor values during history and locale navigation", async 
 
   await page.getByRole("link", { name: "Open Content DNA editor" }).click();
   await fillIdentity(page, "en", "Keep this English locale edit");
-  await page.getByRole("link", { name: "فارسی" }).click();
+  await page.getByRole("link", { name: "فا", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Leave with unsaved changes?" })).toBeVisible();
   await page.getByRole("button", { name: "Stay on this page" }).click();
   await expect(page).toHaveURL(/\/en\/content-dna$/);
@@ -201,7 +202,7 @@ test("protects dirty editor values during history and locale navigation", async 
     "Keep this English locale edit",
   );
 
-  await page.getByRole("link", { name: "فارسی" }).click();
+  await page.getByRole("link", { name: "فا", exact: true }).click();
   await page.getByRole("button", { name: "Leave without saving" }).click();
   await expect(page).toHaveURL(/\/fa\/content-dna$/);
   await expect(page.getByRole("heading", { name: "با تغییرات ذخیره‌نشده خارج شوید؟" })).toHaveCount(
@@ -209,7 +210,7 @@ test("protects dirty editor values during history and locale navigation", async 
   );
 
   await fillIdentity(page, "fa", "این ویرایش فارسی بماند");
-  await page.getByRole("link", { name: "English" }).click();
+  await page.getByRole("link", { name: "EN", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "با تغییرات ذخیره‌نشده خارج شوید؟" }),
   ).toBeVisible();
@@ -218,7 +219,7 @@ test("protects dirty editor values during history and locale navigation", async 
   await expect(page).toHaveURL(/\/fa\/content-dna$/);
   await expect(page.getByLabel("توضیح سازنده یا برند")).toHaveValue("این ویرایش فارسی بماند");
 
-  await page.getByRole("link", { name: "English" }).click();
+  await page.getByRole("link", { name: "EN", exact: true }).click();
   await page.getByRole("button", { name: "خروج بدون ذخیره" }).click();
   await expect(page).toHaveURL(/\/en\/content-dna$/);
 });

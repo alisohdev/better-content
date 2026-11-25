@@ -235,7 +235,14 @@ async function startAssetStorageMockServer(): Promise<
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
       request.on("end", () => {
-        objects.set(key, { bytes: Buffer.concat(chunks), lastModified: new Date() });
+        const body = Buffer.concat(chunks);
+        const bytes =
+          request.headers["content-encoding"] === "aws-chunked" ? decodeAwsChunkedBody(body) : body;
+        if (!bytes) {
+          response.writeHead(400).end();
+          return;
+        }
+        objects.set(key, { bytes, lastModified: new Date() });
         response.writeHead(200).end();
       });
       return;
@@ -247,6 +254,27 @@ async function startAssetStorageMockServer(): Promise<
     server.listen(3101, "127.0.0.1", resolve);
   });
   return { server, baseUrl: "http://127.0.0.1:3101" };
+}
+
+// Node removes HTTP chunk framing. The AWS SDK also frames the checksummed
+// object payload, which the mock must unwrap before storing the object.
+function decodeAwsChunkedBody(body: Buffer): Buffer | null {
+  const chunks: Buffer[] = [];
+  let offset = 0;
+  while (offset < body.length) {
+    const headerEnd = body.indexOf("\r\n", offset);
+    if (headerEnd === -1) return null;
+    const size = body.toString("ascii", offset, headerEnd);
+    if (!/^[0-9a-f]+$/i.test(size)) return null;
+    const length = Number.parseInt(size, 16);
+    if (length === 0) return Buffer.concat(chunks);
+    const start = headerEnd + 2;
+    const end = start + length;
+    if (body.toString("ascii", end, end + 2) !== "\r\n") return null;
+    chunks.push(body.subarray(start, end));
+    offset = end + 2;
+  }
+  return null;
 }
 
 function decodePathKey(pathname: string, bucket: string): string | null {
