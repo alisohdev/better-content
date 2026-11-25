@@ -70,18 +70,18 @@ When this ADR is later accepted, the accepted shape is:
    library setting can implement grandfathering.
 4. Keep `api/openapi.yaml` as the only product contract. Generate the
    TypeScript client with `openapi-typescript` and call it with `openapi-fetch`.
-   Eden Treaty is not the client. Contract tests validate live requests and responses
-   against the OpenAPI schema. Zod remains the runtime validation library.
+   Eden Treaty is not the client. Contract tests validate live requests and
+   responses against the OpenAPI schema. Zod remains the runtime validation library.
 5. Reach functional parity on the new processes while Idea and Content
    generation still finish inside the request, as they do today. Only after
-   after synchronous production cutover and stabilization, implement B-AI in
+   synchronous production cutover and stabilization, implement B-AI in
    a separate approved release. The parity code, contract, migration journal
    and production schema exclude `ai_jobs`, any `ai_generation_inputs`,
    dispatch-marker changes and async failure categories.
    The provider call stays outside any database transaction. A fenced, durable
    dispatch marker prevents automatic redispatch after an uncertain outcome.
    Database-enforced workspace concurrency and atomic result/quota settlement
-   are required. Allow exactly two claim attempts and no automatic provider
+   are required. Allow at most two claim attempts and no automatic provider
    redispatch after the durable marker. Keep consumed quota on invoked and
    unknown failures; release only uninvoked reservations. Preserve accepted
    privacy rules and obtain explicit AI policy amendments before implementing
@@ -106,9 +106,10 @@ reject a missing or untrusted `Origin`. A read that inserts a workspace is a
 state-changing route. `GET /workspaces/current` does not create a workspace.
 
 Better Auth identifies the user. Every private product operation also proves
-workspace membership and resource ownership. The SPA blocks protected rendering and clears its query cache on
-sign-out, session expiry, and user change, with late-response isolation. A post-login redirect accepts only
-a same-site locale path.
+workspace membership and resource ownership. The SPA blocks protected
+rendering and clears its query cache on sign-out, session expiry, and user
+change, with late-response isolation. A post-login redirect accepts only a
+same-site locale path.
 
 The API and the worker share `packages/domain` and `packages/db`. `apps/web`
 cannot import those packages. Package exports, ESLint restrictions, and a
