@@ -27,7 +27,7 @@ An earlier review described a Next.js app with server actions and no product RES
 | No deploy config | True. `compose.yaml` runs Postgres 18 only, host port `5433` by default. There is no Dockerfile and no production manifest. |
 | CI fails Prettier on `tsconfig.json` | The CI run on the first commit of this plan failed `prettier --check` on `tsconfig.json` only. The new docs were clean. This pull request formats that file. B-00 still has to keep `format:check` green after the workspace move. |
 | Content draft integration tests | Once Prettier passed, `npm run test` reached the Postgres suite and failed 16 tests in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts`. Saves of a plain draft throw `A structured Content Draft requires a structured document`, and several assertions still expect `schemaVersion` 3 while the service returns 4. `main` never ran this step, because Prettier failed first. Unit tests in the same job passed. This planning change does not touch those tests. B-PRE-01 investigates the intended rule and fixes them before any extraction. |
-| Vulnerable `next`, `better-auth`, `zod`, `sharp` | Versions are pinned as above. This planning pass did not run `npm audit` and does not name CVEs. B-PRE-01 runs the audit. Only security fixes that pass the existing auth fixtures are applied before parity. Other upgrades wait. |
+| Vulnerable `next`, `better-auth`, `zod`, `sharp` | Versions are recorded as above. This planning pass did not run `npm audit` and does not name CVEs. B-PRE-01 runs the audit. Only security fixes that pass the existing auth fixtures are applied before parity. Other upgrades wait. |
 
 ### What Phase 7 already built
 
@@ -63,13 +63,13 @@ One domain package, not a package per module. The modules keep their current fol
 
 ### Package manager
 
-Prefer Bun workspaces (`packageManager` pinned, `bun.lock` committed). Ticket B-00 proves `bun install` can still typecheck and run the legacy Vitest suite. If the legacy Next app cannot install or test under Bun, keep npm workspaces for the repo and use Bun only as the runtime of `apps/api` and `apps/worker`. Do not block the migration on forcing the doomed Next app onto Bun.
+Keep npm workspaces and the existing lockfile by default. B-00 may select Bun workspaces if reproducible installs and legacy CI pass and the benefit is documented. Pin the package manager and use one authoritative lockfile; runtime selection does not dictate the package manager.
 
-`packages/domain` is written against Node-compatible APIs (`node:dns`, `node:https`, `node:tls`, `pg`) so the legacy Next server and the new Bun processes can import it during the overlap.
+`packages/domain` is written against Node-compatible APIs (`node:dns`, `node:https`, `node:tls`, `pg`) so the legacy Next server and the new API and worker processes can import it during the overlap.
 
 ### What is reused
 
-| Existing code | Under Bun |
+| Existing code | Under the selected runtime |
 | --- | --- |
 | Drizzle schema and `drizzle/0000`–`0018` | Move into `packages/db` unchanged. Keep using `drizzle-orm/node-postgres` and `pg`. Both work on Bun. `drizzle-kit` still generates the next migration. No second migration tool. |
 | Domain Zod modules, document V1–V4 projections, queue rules, DNA readiness, SSRF address checks, media policy | Move with import-path edits. These are pure TypeScript. |
@@ -461,7 +461,7 @@ The spike runs these checks before ADR-021 can be accepted. B-09 repeats the ima
 | --- | --- |
 | sharp `0.35.4` | Node-API module. On Bun it needs optional dependencies and a Debian glibc image (`oven/bun` bookworm), not Alpine. Do not deploy `bun build --compile`; sharp is a shared library. Run the process from an image that has `node_modules`. On Node, use the current Node image pattern. |
 | Image parity | The Go work captured 23 sharp fixtures and their normalized results under `backend/internal/assets/testdata/images/`. The spike classifies them on Bun and on Node. B-09 requires the same classification on the selected runtime. Those fixtures move to `packages/domain` so they survive Go deletion. |
-| ffprobe | Unchanged contract: a shell-free spawn, fixed arguments, 30s timeout, bounded stdout/stderr, sanitized environment, version string must equal `FFPROBE_EXPECTED_VERSION`. The approved version is still unset. Neither the spike nor B-09 picks a version. The worker image installs the version the owner pins and records its checksum. |
+| ffprobe | Unchanged contract: a shell-free spawn, fixed arguments, 30s timeout, bounded stdout/stderr, sanitized environment, version string must equal `FFPROBE_EXPECTED_VERSION`. The approved version is still unset. The owner pins the version and install source/checksum before the spike can pass. The worker image installs that version. |
 | S3 | `@aws-sdk/client-s3` and the presigner stay. Local dev keeps the filesystem adapter. The spike proves a signed PUT and GET against a local stand-in. Browser CORS is a readiness check, not a spike check. |
 | SSRF | Move `external-url-contracts.ts` and `controlled-remote-acquisition.ts` unchanged. The spike and B-09 both cover prohibited addresses, mixed DNS answers, redirect downgrades, and byte limits on the selected runtime. The POST handler still does no network I/O. No new `fetch(userUrl)` anywhere. |
 
@@ -511,7 +511,7 @@ Services to add:
 | `worker` | `apps/worker/Dockerfile`, sharp optional deps, pinned ffprobe with a recorded checksum | Job loop. Same database and storage env as the API. Separate `AI_JOB_CONCURRENCY` and `MEDIA_JOB_CONCURRENCY`. Graceful shutdown stops new claims. |
 | `web` | Build SPA, then a static file server | Dev can skip this and use Vite. Compose's published stack serves the built files and proxies `/api`. |
 
-On Bun, the API Dockerfile runs `bun install --frozen-lockfile` and `bun src/index.ts`. The worker Dockerfile does the same and adds the pinned ffprobe. Neither uses `bun build --compile`. On Node, build the TypeScript into deployable JavaScript and run it with `node`; use the selected frozen package-manager install. Build-tool versions, including the Better Auth schema generator, are pinned. The image does not run `npx --yes auth@latest`.
+Use the selected package manager and its frozen install in both images. On Bun, run `bun src/index.ts`. The worker image adds the pinned ffprobe. Neither uses `bun build --compile`. On Node, build the TypeScript into deployable JavaScript and run it with `node`; use the selected frozen package-manager install. Build-tool versions, including the Better Auth schema generator, are pinned. The image does not run `npx --yes auth@latest`.
 
 Environment variables stay the current set (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, AvalAI key, S3 settings, `FFPROBE_PATH`, `FFPROBE_EXPECTED_VERSION`). Secrets stay in the environment, not in the image.
 
@@ -546,7 +546,7 @@ The review changed the sequence. Functional parity on the new processes comes be
 | 4. Vertical slice | Sign-in, initialize/current workspace, and one DNA save and reload through the real API and the SPA, on a preview database. | Preview |
 | 5. Parity | Remaining screens and routes. Generation still blocks the request, as it does today. Asset jobs run on the new worker. Playwright is green, including the two-account cache test. | Preview |
 | 6. Async AI (optional before cutover) | B-AI and F-AI after F-10A; F-10B verifies async behavior. | Preview; separate production release after synchronous cutover and stabilization |
-| 7. Readiness | Mail transport if the owner wants verification, backups and a restore drill, security headers, resource limits, rollback rehearsal. | Preview |
+| 7. Readiness | Backups and a restore drill, security headers, resource limits, rollback rehearsal. Mail delivery is a separate feature gate. | Preview |
 | 8. Cutover | Proxy switch. New processes own writes. Legacy code and images stay deployed and unused. | Production |
 | 9. Retirement | A later pull request deletes Next.js and Go after the stabilization window. | Production, no behavior change |
 
@@ -561,7 +561,7 @@ B-SPIKE is a small harness, not the production apps. It records pass or fail for
 | Better Auth | A password from the scrypt fixture verifies, and a session cookie issued by the current library is accepted. |
 | Drizzle | A transaction and `pg_advisory_xact_lock` behave as the workspace creation test expects. |
 | sharp | The 23 image fixtures classify the same as the recorded baseline. |
-| ffprobe | A shell-free spawn honors the timeout and returns the version string. The owner still names the production version. |
+| ffprobe | A shell-free spawn honors the timeout and returns the version string. Use the owner-approved production version and audio/video corpus. |
 | SSRF | Prohibited addresses, mixed DNS answers, and redirect downgrades fail closed. The client connects to the approved address. |
 | S3 | A signed PUT and a signed GET work against a local S3 stand-in. The browser upload is covered in the later readiness phase. |
 | AvalAI SDK | The client constructs, aborts on the existing timeout, and does not retry. A live call is optional and not part of CI. |
@@ -614,7 +614,7 @@ Before B-CUT, the owner approves quantitative thresholds based on baseline measu
 1. **Accept ADR-021 only after phase 0 and phase 1.** Phase 7 stays in force until you do. The spike report may amend the runtime line from Bun to Node before you accept.
 2. **Email.** Recommended: do not mark existing addresses verified. Keep current sign-in working. Require verification for new accounts only after mail delivery is tested. Password reset ships in that same later change.
 3. **Mail vendor.** Pick it for deliverability in your users' region. The code calls one function either way.
-4. **ffprobe.** Name the version and the install source. The spike will not choose one.
+4. **ffprobe.** Name the version and the install source. Approve the version and install checksum before B-SPIKE can pass.
 5. **Production host.** Recommended: one machine, Compose, and a TLS proxy that can shift traffic back to the previous image. Say if you need a different platform before phase 7.
 6. **Go CI.** Recommended: drop the Go CI job when ADR-021 is accepted, and keep the source until phase 9. Say if you want the CI job kept until deletion.
 
@@ -642,7 +642,7 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 
 - **Size:** M
 - **Depends on:** ADR-021 Accepted
-- **Scope:** Add the workspace layout and empty app packages. Move the OpenAPI file to `packages/contracts` and apply the parity contract delta only. Generate types. Add `AUTH.md`. Update the ADR status lines. Add the ESLint and package-export boundary. Prove Bun workspaces or the npm-workspaces fallback.
+- **Scope:** Add the workspace layout and empty app packages. Move the OpenAPI file to `packages/contracts` and apply the parity contract delta only. Generate types. Add `AUTH.md`. Update the ADR status lines. Add the ESLint and package-export boundary. Prove the selected package manager and workspace setup.
 - **Acceptance:** The parity YAML contains initialize and current-workspace routes and does not yet add generation 202s. Generated types are clean. The Next app and, if the owner kept it, the Go job still build. Boundaries fail a deliberate bad import.
 
 ### B-01 — Database package
@@ -725,7 +725,7 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 ### B-READY — Production readiness
 
 - **Size:** M
-- **Depends on:** B-09 and F-10A for synchronous readiness; B-AI and F-10B for the separate async release
+- **Depends on:** B-09 and F-10A for synchronous readiness. Repeat the applicable gates for the separate async release after B-AI and F-10B.
 - **Scope:** Compose services, Dockerfiles for the selected runtime, frozen lockfile, non-root image user where practical, memory and CPU limits, graceful worker shutdown, CSP and the usual security headers on the SPA, backup and a restore drill, S3 CORS for browser PUT, centralized structured logs, and the rollback rehearsal in section 8.
 - **Acceptance:** Compose comes up on a fresh database. The rehearsal covers in-flight HTTP mutations, worker claims, signed uploads and exclusive writer verification. Record results, alert thresholds, image digests and the restore drill. Images do not contain the auth secret. `bun build --compile` is not the deployable.
 
@@ -733,7 +733,7 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 
 - **Size:** M
 - **Depends on:** B-READY, F-10A and F-11
-- **Scope:** Execute section 8 against production. Keep the previous image and the legacy source.
+- **Scope:** Execute the synchronous cutover in section 8 against production; do not enable async AI or email changes in this release. Keep the previous image and the legacy source.
 - **Acceptance:** One writer. Sign-in works for an existing user. The worker ready check is green. A documented rollback path was rehearsed. Next.js and Go are still in the repository.
 
 ### B-RETIRE — Legacy deletion
@@ -855,7 +855,7 @@ Frontend tickets start after B-00. The compiler stays off. MSW handlers remain f
 ### F-OPT — React Compiler
 
 - **Size:** S
-- **Depends on:** F-11
+- **Depends on:** B-CUT and stabilization
 - **Scope:** Enable the compiler only if the owner still wants it after parity. It is not a migration ticket.
 - **Acceptance:** The compiler lint rule is on, and Playwright still passes. Skip the ticket if there is no product reason.
 
