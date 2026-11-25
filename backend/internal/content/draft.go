@@ -80,7 +80,9 @@ func (s *Service) SaveDraft(ctx context.Context, subject workspace.MembershipSub
 	if err != nil {
 		return DraftView{}, errors.New("stored Content Draft invariant is invalid")
 	}
-	if stored.SchemaVersion() == 1 && document.Equal(stored, submitted) {
+	if stored.SchemaVersion() == submitted.SchemaVersion() &&
+		(stored.SchemaVersion() == 1 || stored.SchemaVersion() == 4) &&
+		document.Equal(stored, submitted) {
 		view, err := makeDraftView(stored, locked.revision, locked.updatedAt)
 		if err != nil {
 			return DraftView{}, err

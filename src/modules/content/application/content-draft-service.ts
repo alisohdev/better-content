@@ -227,10 +227,7 @@ export function createContentDraftApplicationService(
             "VALIDATION_ERROR",
             "A structured Content Draft requires a structured document.",
           );
-        } else if (
-          storedDocument.data.schemaVersion === 3 &&
-          contentDocumentsEqual(storedDocument.data, document)
-        ) {
+        } else if (contentDocumentsEqual(storedDocument.data, document)) {
           return toDraftDto(target.draft);
         }
 

@@ -81,6 +81,12 @@ Existing Content and historical V1, V2, and V3 Versions remain unchanged. A
 deterministic V3-to-V4 projection adds no query, performs no write when read, and
 is semantically equal to its V3 source until a meaningful V4 change occurs.
 
+### Pre-launch data
+
+The [owner-approved pre-launch exception in ADR-004](ADR-004-structured-content-storage.md#owner-approved-pre-launch-exception)
+waives the preservation of disposable older-format records. Newly created Drafts
+and Versions follow this ADR's revision, immutability, and acceptance rules.
+
 ## Consequences
 
 ### Positive

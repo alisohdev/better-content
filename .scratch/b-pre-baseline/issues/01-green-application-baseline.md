@@ -6,15 +6,19 @@ Source: Migration plan, B-PRE-01, in GitHub PR #1.
 
 ## Content behavior decision
 
-ADR-016's Ticket 09 amendment establishes V4 for all three new generation artifacts. ADR-004 defines the V4 editor projection and preserves source schema for stored Draft reads and immutable history. A meaningful edit uses V4, and a legacy V1 transition stores one exact checkpoint. ADR-003 preserves revision and accepted-pointer semantics. ADR-018 preserves Asset lineage. Plain V1 Draft JSON is historical input and is rejected as a replacement for a structured Draft.
-
-A projected V2 or V3 Draft that has no semantic edit stays at its historical schema and revision. Older clients cannot downgrade an authoritative V4 Draft. Preserve existing acceptance and idempotency for stored V2 and V3 Drafts. A new V4 document or a V1 acceptance migration snapshots V4. Keep explicit older-client V2 write coverage for an authoritative V2 Draft.
+The [owner-approved pre-launch exception](../../../docs/adr/ADR-004-structured-content-storage.md#owner-approved-pre-launch-exception)
+supersedes earlier historical-data review gates. Use canonical V4 documents for
+current behavior and fixtures. Verified project development and test databases
+may be recreated if necessary. Requirements to migrate or preserve disposable
+V1–V3 documents, Draft revisions, AI snapshots, and test accounts are removed.
+Existing legacy code can be cleaned up with the later migration.
 
 ## Acceptance
 
-- [x] Reproduce the known failures, reconcile the matrix with independent review, and fix proven defects.
-- [x] Pin and verify Auth schema generation, and record audit findings and remediation.
-- [ ] Pass all required GitHub Actions steps on a dedicated PR targeting main.
+- [x] Reproduce and document the original failures and apply scoped security updates.
+- [x] Pin Auth CLI and verify generated schema consistency.
+- [x] Prove equal V4 saves and canonical V4 acceptance in TypeScript and Go. Preserve authorization, revision conflicts, immutable versions, recovery, and Asset integrity for current records.
+- [ ] Pass the full hosted CI workflow on the updated pull request targeting main.
 
 ## Root-cause matrix
 
@@ -154,9 +158,14 @@ The remaining critical package entry, proxy-addr, comes from shadcn's CLI depend
 
 ## Independent review and owner decision
 
-Grok confirmed the fixture corrections, V1 checkpoint behavior, and V2/V4 equality defect. The review challenged a proposed V3 acceptance migration. ADR-004's V4 resolution says the first meaningful V4 save or acceptance persists V4. ADR-018's Draft, Version, and acceptance lineage says acceptance snapshots the current canonical V3 document. ADR-003 specifies that a query-free V3 projection is equivalent to its source. The Go reference snapshots a V4 projection while keeping the stored V3 Draft. The current Next.js application snapshots V3 and keeps the Draft in V3.
-
-The owner should confirm whether the first approval of an otherwise untouched historical V3 Draft must snapshot V3 or V4 and whether it may update the working Draft revision. This branch preserves the current application behavior pending that decision.
+Grok confirmed the fixture corrections, identified the equal V4 save defect, and
+flagged different historical acceptance behavior in TypeScript and Go. The
+[owner direction](https://github.com/alisohdev/better-content/pull/2#issuecomment-7165952926)
+withdraws BPRE-01 and BPRE-06 as historical-data blockers. V4 parity stays in
+scope. The tests now exercise V4 acceptance, equal saves, repeated approval,
+and stale revisions. BPRE-02, BPRE-04, and BPRE-10 historical-path cleanup can
+wait. BPRE-05 and BPRE-07 remain addressed. The CI job split and a database
+document-version constraint, BPRE-08 and BPRE-09, are deferred.
 
 ## Scope
 
@@ -173,3 +182,14 @@ The [first PR workflow](https://github.com/alisohdev/better-content/actions/runs
 The local rerun passed all 25 non-Asset browser tests and exposed one more test-isolation issue. Asset jobs have no foreign key to the asset row stored in their JSON payload, so cascading workspace cleanup left stale jobs for the next run's one-shot worker. The guarded E2E reset now clears `asset_jobs` and the worker checks that it claimed a due job. The B-roll picker test uses its direction-specific accessible button name.
 
 Local TypeScript verification after the runtime fixes passed 406 unit/component tests and 228 PostgreSQL integration tests. The test suite retains one pre-existing optional live-storage skip.
+
+## Previous CI baseline
+
+The full GitHub Actions workflow passed on f76c83b, including Go race checks and Playwright. [Workflow results](https://github.com/alisohdev/better-content/actions/runs/45635532733/job/139279834832).
+
+## B-SPIKE handoff
+
+After the green baseline lands on main, use a fresh verified test database and
+canonical V4 fixtures for B-SPIKE. Compare Node and Bun under the approved runtime
+checks and evaluate adapters only for eligible runtimes. ADR-020 remains Accepted
+and ADR-021 remains Proposed. This ticket contains no spike implementation.

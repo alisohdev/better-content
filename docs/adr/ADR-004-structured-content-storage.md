@@ -164,6 +164,28 @@ persists V4 through the existing optimistic-concurrency and acceptance
 transactions. Historical V1, V2, and V3 Versions and AI Run snapshots are never
 rewritten.
 
+### Owner-approved pre-launch exception
+
+Better Content has no real users. During pre-launch, verified project
+development, test, and pre-launch databases contain disposable data and may be
+recreated. Use a verified project database target and the environment safeguards
+before any reset. End this exception before retaining real user data.
+
+B-PRE-01 and B-SPIKE use canonical ContentDocumentV4. Requirements to preserve or
+migrate disposable V1–V3 documents, old Draft revisions, historical AI snapshots,
+or existing test accounts are waived during this window. Older-format behavior
+has no pre-launch compatibility guarantee. Existing migration files remain the
+schema bootstrap history.
+
+For newly created Content, ADR-003's Draft, immutable Version, optimistic
+concurrency and acceptance rules still apply. ADR-016 still governs canonical
+generation and ADR-018 still governs Asset integrity. An equal V4 save at the
+current revision preserves the working Draft and its timestamp. A meaningful
+acceptance creates an immutable V4 snapshot. Repeating an equivalent approval
+returns the current accepted Version.
+
+[Owner approval](https://github.com/alisohdev/better-content/pull/2#issuecomment-7165952926)
+
 ## Schema evolution
 
 Every document contains `schemaVersion`.
