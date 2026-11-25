@@ -10,7 +10,7 @@
 ## Context
 
 Better Content ships as one Next.js 16 application. Server actions and React
-Server Components own the live product path. Better Auth 1.7.3 owns
+Server Components own the live product path. Better Auth 1.7.7 owns
 email/password sessions. PostgreSQL, Drizzle, and the modular monolith under
 `src/modules` own product behavior.
 
@@ -49,13 +49,13 @@ This ADR stays Proposed until both of these exist:
    builds, Go checks while ADR-020 remains accepted, and Playwright. Investigate
    and fix the 16 Content draft integration failures according to the actual
    product rule. Assertions are not flipped until that rule is written down.
-2. A runtime spike report. Evaluate Node and Bun with the same critical
-   runtime checks and adapter tests before selection. Record pinned-runtime
-   execution evidence, comparable measurements, and the eligible runtime and
-   adapter pairs. If only one runtime has an eligible pair, recommend it.
-   If both do, prefer Node unless Bun demonstrates a material benefit that
-   justifies its operational risk. If neither does, stop. The owner explicitly
-   selects the runtime and adapter based on this evidence.
+2. A runtime spike report. The owner has selected Hono and prefers Bun.
+   Evaluate Bun + Hono and Node + Hono using the same critical compatibility,
+   security and agreed operational gates. Record pinned-runtime execution
+   evidence and comparable measurements. Prefer Bun if it passes every gate;
+   use Node + Hono if Bun fails and Node passes. If neither passes, stop.
+   The owner confirms the runtime based on this evidence before accepting
+   this ADR. Elysia is outside the spike.
 
 When this ADR is later accepted, the accepted shape is:
 
@@ -63,12 +63,11 @@ When this ADR is later accepted, the accepted shape is:
    and a static React 19 SPA. The SPA uses Vite, TanStack Router, and TanStack
    Query. The React Compiler is an optional independent release only after
    B-CUT and the measurable stabilization gates. It is not part of parity.
-2. The HTTP layer is a thin adapter over `packages/domain`. Test Elysia on
-   each eligible runtime, and test Hono on each runtime where Elysia fails
-   adapter checks, before choosing a pair, even if Elysia fails on both.
-   Prefer a passing Elysia adapter within a runtime; otherwise use passing
-   Hono. The same real HTTP contract tests apply to either adapter. The domain
-   package imports neither Elysia, Hono, nor Next.
+2. Hono is the thin HTTP layer over `packages/domain`. Run the same Hono app
+   via the Bun Fetch handler or the official Node server adapter. Real HTTP
+   contract tests apply to both runtimes. The domain package imports neither
+   Hono nor other HTTP frameworks or Next. Use existing Zod validation and
+   the committed OpenAPI contract, not a framework-coupled RPC client.
 3. Keep Better Auth, upgraded only when a security fix or the spike requires
    it, and only after the existing scrypt and session fixtures pass. Preserve
    the `better-auth.session_token` cookie and `BETTER_AUTH_SECRET`. Do not add
@@ -139,8 +138,8 @@ production-bundle check enforce that boundary.
 - Existing Better Auth password hashes and sessions stay on the library that
   created them.
 - The SPA and the API can be built against one contract.
-- Runtime and adapter selection is evidence-driven, without another domain
-  rewrite if either candidate is ineligible.
+- Hono is fixed across the Bun and Node candidates, avoiding a domain rewrite
+  or second framework evaluation if Bun is ineligible.
 - Async AI, email verification, and legacy deletion are separate from the
   runtime move, so a failure has one cause to inspect.
 
@@ -174,9 +173,10 @@ are the compatibility risks. The spike is the acceptance input.
 
 ### HTTP adapter choice
 
-Elysia is tested first on each eligible runtime; Hono is tested where Elysia
-fails adapter checks, before selecting a runtime/adapter pair. No framework
-is assumed to pass. The domain does not depend on either one.
+The owner selected Hono rather than Elysia because the API is a thin adapter
+and the shared contract is OpenAPI, not a framework-specific RPC client.
+Hono's Fetch interface keeps the runtime fallback small. No Elysia spike
+is required; Hono still has to pass the actual integration gates.
 
 ### Eden Treaty, TypeBox, Redis, or a second migration tool
 
@@ -200,8 +200,8 @@ phases. Rollback of the proxy is not rollback of in-flight `ai_jobs`.
   the pull request that only updates the plan.
 - On a later acceptance, update the status lines of ADR-001, ADR-002, ADR-010,
   and ADR-020. Freeze Go feature work in that same change.
-- If no runtime/adapter pair passes the critical checks, stop and ask the
-  owner. Do not weaken SSRF, media inspection, or password checks to
+- If neither Bun + Hono nor Node + Hono passes the critical checks, stop and
+  ask the owner. Do not weaken SSRF, media inspection, or password checks to
   finish the move.
 - The migration plan owns the spike checklist, the job failure rules, the
   cutover and rollback steps, and the ticket list.
