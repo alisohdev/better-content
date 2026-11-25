@@ -26,6 +26,7 @@ An earlier review described a Next.js app with server actions and no product RES
 | Vitest and Playwright | True. Unit plus Postgres integration via Vitest. Playwright specs: authentication, content DNA, ideas, content, content generation, assets. E2E selects the AI fake with `BETTER_CONTENT_E2E=1` and a scenario cookie. |
 | No deploy config | True. `compose.yaml` runs Postgres 18 only, host port `5433` by default. There is no Dockerfile and no production manifest. |
 | CI fails Prettier on `tsconfig.json` | The CI run on the first commit of this plan failed `prettier --check` on `tsconfig.json` only. The new docs were clean. This pull request formats that file. B-00 still has to keep `format:check` green after the workspace move. |
+| Content draft integration tests | Once Prettier passed, `npm run test` reached the Postgres suite and failed 16 tests in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts`. Saves of a plain draft throw `A structured Content Draft requires a structured document`, and several assertions still expect `schemaVersion` 3 while the service returns 4. `main` never ran this step, because Prettier failed first. Unit tests in the same job passed. This planning change does not touch those tests. |
 | Vulnerable `next`, `better-auth`, `zod`, `sharp` | Versions are pinned as above. This planning pass did not run `npm audit` and does not name CVEs. Ticket B-11 runs the audit and upgrades `better-auth`, `zod`, and `sharp` to patched releases. Next.js leaves the shipping runtime at cutover, which removes that advisory from production. |
 
 ### What Phase 7 already built
@@ -538,7 +539,7 @@ Frontend screen tickets use MSW until the paired backend ticket is merged, then 
 | Risk | Why it is real | Mitigation |
 | --- | --- | --- |
 | ADR-020 is still Accepted | An agent that follows the index will keep building Go. | Accept ADR-021 and, in B-00, update the status lines of ADR-001, ADR-002, ADR-010, and ADR-020. Until then, do not start. |
-| Domain extraction breaks the shipping Next app | M1 moves code the live server imports. | Next server actions become thin wrappers. The existing Vitest and Playwright suites must pass on M1 before any Elysia route is considered done. |
+| Domain extraction breaks the shipping Next app | M1 moves code the live server imports. | Next server actions become thin wrappers. Suites that pass today must still pass on M1. The Content V3/V4 integration failures below already fail before any move. |
 | Better Auth upgrade invalidates hashes or the cookie | Accounts live in `account.password` and sessions in `session`. | Fixture gate. Same secret. Stop if the fixture fails. Do not force a password reset. |
 | `requireEmailVerification` locks existing users out | `email_verified` defaults to false. | Grandfather backfill, owner-confirmed, before the flag is enabled. |
 | Bun and sharp disagree on an image | Native libvips, and a compile-to-binary deploy will not include it. | Debian image, no `bun build --compile`, 23-fixture corpus must match. |
@@ -548,6 +549,7 @@ Frontend screen tickets use MSW until the paired backend ticket is merged, then 
 | Go CI becomes a tax | Keeping `backend/` compiling while the YAML changes. | Stubs may return 501 for `GET /workspaces/current`. Delete the tree in B-12, not before parity. |
 | Dual writers | Easy to "temporarily" leave a server action mounted. | Cutover checklist: one writer per aggregate. Preview database is not production. |
 | Prettier and dependency CVEs | `tsconfig.json` was the only Prettier failure on this branch, and this pull request formats it. `next`, `better-auth`, `zod`, and `sharp` stay on the versions named above. | B-11 runs the audit and upgrades. This plan does not invent CVE ids. |
+| Content draft tests expect schema version 3 | The integration suite expects a plain draft and `schemaVersion: 3`. The service now requires a structured document and returns version 4. | Leave the fix out of this planning pull request. The first implementation ticket that needs a green `npm run test` repairs those two files, or gets an owner decision if the version-3 cases are still required behavior. |
 
 ### Open decisions for the owner
 
@@ -583,7 +585,7 @@ Each ticket ends with the legacy Next suite still passing, unless the ticket is 
 - **Size:** L
 - **Depends on:** B-01
 - **Scope:** Move domain, application, and infrastructure into `packages/domain`. Remove `server-only`. Move the E2E provider cookie read to a function the caller passes in. Next server actions and `scripts/run-asset-jobs.ts` become wrappers around the package. Do not change SQL, validation, or error codes.
-- **Acceptance:** Existing unit, integration, and Playwright suites pass unchanged in result. A dependency check fails if `packages/domain` imports `next`, `react`, `elysia`, or `server-only`.
+- **Acceptance:** Unit tests still pass. Integration and Playwright results match the pre-move baseline, including the already-failing Content draft cases in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts` (plain drafts rejected, `schemaVersion` 4 where those tests still expect 3). A dependency check fails if `packages/domain` imports `next`, `react`, `elysia`, or `server-only`.
 
 ### B-03 — Elysia platform
 
