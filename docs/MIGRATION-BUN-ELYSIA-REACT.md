@@ -1,4 +1,4 @@
-# Migration plan: Bun, Elysia, and a React 19 SPA
+# Migration plan: TypeScript API, worker, and React 19 SPA
 
 **Status:** Proposal, revised after architecture review. [ADR-021](adr/ADR-021-bun-elysia-react-spa.md) stays Proposed. It is not accepted by this pull request, and it cannot be accepted until the test baseline and the runtime spike below are finished.
 
@@ -47,8 +47,8 @@ Composition roots that still import Next (`cookies()` from `next/headers`) are `
 
 ```text
 apps/api          HTTP API. Elysia on Bun is the candidate. Routes, auth mount, error mapping.
-apps/worker       Bun process. Asset jobs and AI jobs. No HTTP product API.
-apps/web          Vite SPA. React 19, React Compiler, TanStack Router, TanStack Query.
+apps/worker       Selected runtime. Asset jobs; later AI jobs. No HTTP product API.
+apps/web          Vite SPA. React 19, TanStack Router, TanStack Query.
 packages/contracts  openapi.yaml, generated TS types, AUTH.md (Better Auth surface).
 packages/db       Drizzle schema, SQL migrations, pool factory. No product rules.
 packages/domain   Domain, application, and provider adapters. No React, no Elysia.
@@ -74,15 +74,15 @@ Prefer Bun workspaces (`packageManager` pinned, `bun.lock` committed). Ticket B-
 | Drizzle schema and `drizzle/0000`–`0018` | Move into `packages/db` unchanged. Keep using `drizzle-orm/node-postgres` and `pg`. Both work on Bun. `drizzle-kit` still generates the next migration. No second migration tool. |
 | Domain Zod modules, document V1–V4 projections, queue rules, DNA readiness, SSRF address checks, media policy | Move with import-path edits. These are pure TypeScript. |
 | Application services and Drizzle repositories | Move. Inject `userId` from the HTTP layer. Delete `cookies()` / `next/headers` from the service. Keep the E2E provider switch behind `BETTER_CONTENT_E2E`, reading a header or cookie in the API adapter. |
-| AvalAI adapters (`openai` SDK, 60s / 90s timeouts, `maxRetries: 0`) and the fake providers | Move into the worker's provider factory. Confirm the SDK on Bun in B-06 before deleting the Next path. |
+| AvalAI adapters (`openai` SDK, 60s / 90s timeouts, `maxRetries: 0`) and the fake providers | Keep a shared provider factory: the API uses it for synchronous parity; the worker uses it in B-AI. The spike proves the SDK on the selected runtime. |
 | `controlled-remote-acquisition.ts`, sharp inspector, ffprobe inspector, S3 adapter | Move into the worker. See section 6 for native-binary rules. The behavior stays; the host process changes. |
 | React presentation under `src/modules/*/presentation` and `src/components` | Move into `apps/web`. Replace `next-intl` imports with `use-intl`, and `next` links with TanStack Router links. |
 | `messages/en.json`, `messages/fa.json` | Keep the catalogs and the key structure. |
 | shadcn components in `src/components/ui` (14 files) and `src/app/globals.css` (Tailwind 4) | Move. Set `components.json` `"rsc": false` when adding new components. |
-| `api/openapi.yaml` | Becomes the contract file. Apply the deltas in section 4. Keep the cookie security schemes; they already name `better-auth.session_token`. |
+| `api/openapi.yaml` | Becomes the contract file. Apply the deltas in section 3. Keep the cookie security schemes; they already name `better-auth.session_token`. |
 | Go sources under `backend/` | Do not translate. Freeze feature work when ADR-021 is accepted. Delete them in B-RETIRE, after the new system has been stable, not on cutover day. |
-| Server actions | Delete at cutover. They are adapters. The services they call are the reusable part. |
-| Playwright specs | Keep as the safety net. Point them at the SPA in F-10. |
+| Server actions | Disable at cutover; delete in B-RETIRE. They are adapters. The services they call are the reusable part. |
+| Playwright specs | Keep as the safety net. Point them at the SPA in F-10A. |
 
 Rough size of the reuse: the product rules already exist in TypeScript and are covered by Vitest integration tests against Postgres. The new work is an HTTP shell, a job boundary around two provider calls, a SPA shell, and a mechanical UI port. It is not a domain rewrite.
 
@@ -108,7 +108,7 @@ TypeBox (`Elysia.t`) is the library Elysia generates OpenAPI from most directly.
 
 ### Auth
 
-Upgrade Better Auth in place. The Drizzle adapter import may move to `@better-auth/drizzle-adapter` on current docs; the tables stay `user`, `session`, `account`, `verification`. Before merging an upgrade:
+Keep the existing pinned Better Auth version unless a security fix or the spike requires an upgrade. Check adapter imports against the chosen version; the tables stay `user`, `session`, `account`, `verification`. Before merging any upgrade:
 
 1. Run the existing scrypt fixture at `.scratch/phase-07-go-backend-migration/fixtures/better-auth-scrypt-v1.json` and the session-cookie fixture beside it. A hash the current library accepts must still verify.
 2. Diff `auth:generate-schema` against `src/db/schema/auth.ts`. An unexpected column is a reviewed Drizzle migration, not a silent push.
@@ -133,6 +133,8 @@ Email verification and password reset are a product change after runtime parity,
 | New user, after a tested mail transport | Verification is required before sign-in. The sender is a one-function port. A failed send is logged without the reset or verification URL. |
 | Verified user | Normal access. |
 
+For B-EMAIL, persist an explicit server-controlled grandfathering policy, such as a reviewed account-creation cutoff and an access-exemption marker. Do not enable a global `requireEmailVerification` switch unless the pinned library proves the per-account exception works. Enforce the policy at every session-issuance path and on protected API access. New unverified accounts must not receive usable product sessions, including through password reset or alternate flows. Re-evaluate verification on email change. Test existing unverified, new unverified, verified, reset, resend, expiry, and email-change cases. Use a local test mailbox; never log tokens.
+
 The mail sender is `sendTransactionalEmail({ to, subject, text })`. Local development logs that a message was requested and does not log the token or the URL. The vendor is an owner decision, chosen for deliverability to the users' region. The domain does not import a vendor SDK. `package.json`'s `auth:generate-schema` script currently runs `npx --yes auth@latest`. The baseline ticket pins that tool to a reviewed version. This planning pull request does not edit that script.
 
 Workspace creation stays out of Better Auth, and it is not a side effect of a GET. `POST /api/v1/workspaces/initialize` runs today's `getOrCreateDefaultWorkspace` (advisory lock, one personal workspace, owner membership) and is origin-checked. `GET /api/v1/workspaces/current` only reads. A missing workspace is 404, which the client repairs by calling initialize. New sign-ups call initialize once from the server after the account exists, so the common path does not depend on the client remembering. The session payload stays identity-only, matching ADR-002.
@@ -147,7 +149,7 @@ One public origin in production and in local development.
 | Local development | Vite proxies `/api` to Elysia. The browser's origin is the Vite origin. `trustedOrigins` includes that origin. |
 | Cookie | Better Auth's `HttpOnly` session cookie. `SameSite=Lax`. `Secure` when the origin is HTTPS. `Path=/`. Name stays `better-auth.session_token`. |
 | CSRF | `SameSite=Lax` plus Better Auth's origin check, plus an `Origin` check on every state-changing `/api/v1` route. A missing `Origin` on a mutation is a 403 `INVALID_ORIGIN`. |
-| CORS | Not used for the single-origin deployment. Do not add `Access-Control-Allow-Origin: *`. A split host later is a new decision because it forces `SameSite=None` and a credentialed allow-list. |
+| CORS | Not used for the single-origin deployment. Do not add `Access-Control-Allow-Origin: *`. A split origin later requires a credentialed CORS allow-list and a review of cookie scope; cross-site deployment may require `SameSite=None; Secure`. |
 | SPA fetch | `credentials: 'include'` on the product client and on the Better Auth client. The browser stores `Set-Cookie` on same-origin responses, so the SSR cookie-forwarding problem called out in ADR-020 does not apply. |
 
 ### Rate limiting
@@ -158,7 +160,7 @@ Three layers, already mostly present. Do not invent a fourth.
 2. Existing workspace and provider quotas inside the Idea and Content services. They stay in `packages/domain`.
 3. Asset admission quotas (per user, per workspace, active workflow cap). They stay in the upload service.
 
-A workspace quota rejection is HTTP 429 on the POST, before a job is enqueued. A provider rate limit happens in the worker and is stored on the batch or attempt as `errorCategory: RATE_LIMITED` and `rateLimitSource: provider`. The UI already branches on that field.
+A workspace quota rejection is HTTP 429 on the POST, before a job is enqueued. After B-AI, a provider rate limit happens in the worker and is stored on the batch or attempt as `errorCategory: RATE_LIMITED` and `rateLimitSource: provider`. The UI already branches on that field.
 
 ### Error mapping
 
@@ -200,7 +202,7 @@ Body:
 
 ### Route inventory
 
-Paths are relative to `/api/v1`. "New" means the operation is not in today's YAML.
+Paths are relative to `/api/v1`. "New" means the operation is not in today's YAML. Generation 202 and polling deltas below describe B-AI only; parity retains synchronous responses.
 
 #### Server actions
 
@@ -277,6 +279,8 @@ Async contract, applied only in the later AI-job phase:
 
 1. On the four generation POSTs, add `202` with the same resource schema as today's `200`. Document 200 as "idempotent replay of a terminal operation" and 202 as "work queued." Remove `502` from those POSTs. Provider failure is a terminal resource state read by GET.
 
+2. Add `PROVIDER_RESULT_UNKNOWN` to persisted AI run, Idea batch and Content attempt failure constraints, Drizzle types, domain and Zod schemas, OpenAPI failure-category enums, generated clients, EN/FA copy, retry rules and tests. This is a terminal resource failure. Use `INTERRUPTED` when dispatch definitively never started. Before enabling async writes, prove the rollback image can safely read these persisted categories (or map them to a supported safe category on read).
+
 Frontend agents code against the parity contract first. They do not build polling until the async contract lands.
 
 ## 4. How the two agents share the contract
@@ -291,7 +295,7 @@ Workflow:
 2. B-00 applies the delta in section 3 and generates `packages/contracts/src/generated.ts`.
 3. The frontend creates a single `openapi-fetch` client with `credentials: 'include'` and a base URL of `/api/v1`. Query functions are typed from the generated paths. No hand-written DTOs.
 4. The frontend keeps MSW handlers generated from the spec for component tests. Those handlers stay after the real API exists, so frontend tests do not need Postgres. Playwright and the API contract tests hit the real server. MSW is not a second contract; a drift check fails if a handler's status or required fields disagree with the YAML.
-5. The backend implements each `operationId`. The contract test loads the OpenAPI document and validates the live JSON response against that operation's schema: status, required fields, enums, additional properties, and the error envelope. A type-only check is not enough, because generated TypeScript types do not run at runtime.
+5. The backend implements each `operationId`. The contract test loads the OpenAPI document and validates the live JSON response against that operation's schema: status, required fields, enums, additional properties, and the error envelope. A type-only check is not enough, because generated TypeScript types do not run at runtime. Validate requests too, including invalid bodies, query and parameter coercion, missing fields and malformed values; rejected requests must not mutate state.
 6. Neither agent edits the other's app. Both may touch `packages/contracts` only through a contract commit.
 7. Auth is the exception: `AUTH.md` plus the pinned Better Auth client. The frontend does not re-describe those routes in YAML.
 
@@ -372,7 +376,7 @@ refetchInterval: (query) => {
 
 Set `refetchIntervalInBackground: false`. Stop on `COMPLETED` or `FAILED`. The same pattern covers asset rows in `PENDING`, `PROCESSING`, and `DELETING`, polled from the library query while any visible row is non-terminal. Invalidate the content detail when an attempt reaches `COMPLETED` and gains a `contentId`. Polling ships with the async phase. The parity UI still waits on the synchronous POST.
 
-Session and workspace keys are not scoped by user id, so they are not safe to leave in memory across accounts. On sign-out, on a session response that changes the user id, and on session expiry, the client calls `cancelQueries()` and then `clear()`. The next screen cannot render cached DNA, ideas, drafts, or assets from the previous account. A Playwright test signs in as user A, loads a workspace screen, signs out, signs in as user B in the same browser, and asserts that none of A's titles are visible.
+Session and workspace keys are not scoped by user id, so they are not safe to leave in memory across accounts. On sign-out, on a session response that changes the user id, and on session expiry, the client blocks protected rendering, cancels queries with propagated abort signals, then clears cache and resets router/session state. Guard late mutation callbacks with an identity epoch or replace the QueryClient on identity change. The next screen cannot render cached DNA, ideas, drafts, or assets from the previous account. A Playwright test signs in as user A, loads a workspace screen, signs out, signs in as user B in the same browser, and asserts that none of A's titles are visible.
 
 Query functions throw an `ApiError` carrying `code`, optional `rateLimitSource`, and `fields`. Screens map codes through the existing localized copy helpers (`actionErrorCopy`, `contentActionErrorCopy`). They do not parse English server messages.
 
@@ -412,9 +416,9 @@ Signed-in users who hit sign-in go to the dashboard. The verify-email and reset-
 
 `asset_jobs` is the right protocol and the wrong table. Its checks allow only the five asset types, a payload of exactly `{ "assetId": "<string>" }`, and asset failure codes. Idea and Content jobs carry a batch id or an attempt id, and they fail with AI categories. Forcing them into `asset_jobs` would weaken those checks.
 
-Add `ai_jobs` with a reviewed Drizzle migration (ADR-012). Columns mirror the asset job protocol: id, type, dedupe key, payload, status, `scheduled_at`, attempts, `max_attempts` (1–5), lease owner, lease expiry, failure code, terminal timestamps. Types: `GENERATE_IDEAS`, `RETRY_IDEA_GENERATION`, `GENERATE_CONTENT`, `RETRY_CONTENT_GENERATION`. Payload is ids only (`batchId` or `attemptId`, plus `workspaceId`). No prompts, no DNA documents, no provider keys.
+Add `ai_jobs` with a reviewed Drizzle migration (ADR-012). Columns mirror the asset job protocol: id, type, dedupe key, payload, status, `scheduled_at`, attempts, `max_attempts` (1–5), lease owner, lease expiry, monotonically increasing fencing token, `provider_call_started_at`, failure code, terminal timestamps. Types: `GENERATE_IDEAS`, `RETRY_IDEA_GENERATION`, `GENERATE_CONTENT`, `RETRY_CONTENT_GENERATION`. Payload is ids only (`batchId` or `attemptId`, plus `workspaceId`). No prompts, no DNA documents, no provider keys.
 
-Claim with `FOR UPDATE SKIP LOCKED`, the same lease and heartbeat rules as `asset_jobs`. One worker process runs both registries. It is not a second queue product and not a second deployable domain. This table and this behavior land in the async phase, after synchronous parity. The parity API still performs today's in-request provider call.
+Claim with `FOR UPDATE SKIP LOCKED`, the same lease and heartbeat rules as `asset_jobs`. Serialize claims per workspace in a short database transaction (workspace advisory lock and active-running-job check, or equivalent database invariant). All heartbeats, provider-start markers, completion and failure updates require the current owner, fencing token and valid lease. A stale worker cannot commit output. Finalize canonical output, run state, job state and quota atomically. Test independent database connections and worker processes, simultaneous same-workspace claims, lease expiry before and after the dispatch marker, stale completion and claim exhaustion. One worker process runs both registries. It is not a second queue product and not a second deployable domain. This table and this behavior land in the async phase, after synchronous parity. The parity API still performs today's in-request provider call.
 
 ### Failure, leases, and duplicate provider calls
 
@@ -424,15 +428,17 @@ AvalAI does not offer a caller-supplied idempotency key that this codebase can r
 | --- | --- |
 | Double-submitted POST | The existing idempotency key returns the same batch or attempt. The `ai_jobs` dedupe key is unique. A second job is not inserted. |
 | Quota | The reservation commits in the enqueue transaction. It is released when the run reaches a terminal failure, using today's quota rules. It is consumed when the run completes. A stuck job holds the reservation until it is failed or finished. |
-| Inputs | The payload is ids only. The worker reads the DNA version, idea, prompt version, and settings already stored on that batch or attempt. It does not re-read mutable current DNA for an in-flight job. A user retry is a new attempt and may use current DNA, which is today's retry rule. |
-| Before the provider call | A short transaction sets `provider_call_started_at` only when it is still null, then the process calls AvalAI outside any transaction. Timeout stays 60s for ideas and 90s for content. `maxRetries` on the SDK stays 0. |
+| Inputs | The payload is ids only. Persist or reference an immutable snapshot of all effective provider inputs at enqueue (DNA version, idea text/version, instructions, language, model, prompt version and settings). Snapshot mutable references. The worker does not re-read mutable current DNA or settings. A user retry is a new attempt and may use current DNA, which is today's retry rule. |
+| Before the provider call | A short transaction sets `provider_call_started_at` only when it is still null and the lease is valid and fenced, then the process calls AvalAI outside any transaction. A crash between marking and dispatch is conservatively unknown. Timeout stays 60s for ideas and 90s for content. `maxRetries` on the SDK stays 0. |
 | Provider returns an error or invalid output | One short transaction records the safe category and completes the job as failed. No partial ideas or Content. No hidden second provider call inside the attempt. |
 | Process dies after the provider call starts and before the result commits | The lease expires. A reclaim sees `provider_call_started_at` and no stored result. It marks the run `FAILED` with `PROVIDER_RESULT_UNKNOWN` and does not call AvalAI again. The user can retry explicitly. That retry is a new attempt and may spend another provider call. This is the cost of refusing a blind replay. |
 | Process dies before `provider_call_started_at` is set | The lease expires and another attempt may make the first provider call. Max attempts for an AI job are 2. Asset jobs keep their current max of 5. |
 | Per workspace | At most one RUNNING AI job per workspace. A second due job for that workspace stays queued. Asset jobs are not blocked by that cap. |
 | Concurrency | One process, two pools, configured by `AI_JOB_CONCURRENCY` and `MEDIA_JOB_CONCURRENCY`. Defaults are 2 and 2 until the spike measures memory. An AI call and a video inspection must not share one unbounded loop. |
 
-The worker exposes `GET /health/live` and `GET /health/ready` on a private port. Ready means the database is reachable and the last claim loop finished inside its interval. Logs include queue depth, oldest pending age, running count per pool, failure count, and provider latency. They do not include prompts, documents, or tokens. An alert fires when the oldest pending AI or asset job is older than 10 minutes, or when the ready check fails. A 202 from the API is not success if that alert is firing.
+When claims exhaust attempts before dispatch, atomically fail the run as `INTERRUPTED`, fail the job and release the reservation. A recovery sweep reconciles expired leases and inconsistent job/run states. Track provider usage and estimated costs separately from user quota, including unknown outcomes.
+
+The worker exposes `GET /health/live` and `GET /health/ready` on a private port. Ready means the database is reachable and the last claim loop finished inside its interval. Logs include queue depth, oldest pending age, running count per pool, failure count, and provider latency. They do not include prompts, documents, or tokens. An alert fires when the oldest pending AI or asset job is older than 10 minutes, or when the ready check fails. A 202 means accepted, not completed. Alert on overdue pending work, excluding intentionally future-scheduled jobs.
 
 Polling every 2 seconds is enough. Do not add SSE or WebSockets in this migration.
 
@@ -459,7 +465,7 @@ The spike runs these checks before ADR-021 can be accepted. B-09 repeats the ima
 | S3 | `@aws-sdk/client-s3` and the presigner stay. Local dev keeps the filesystem adapter. The spike proves a signed PUT and GET against a local stand-in. Browser CORS is a readiness check, not a spike check. |
 | SSRF | Move `external-url-contracts.ts` and `controlled-remote-acquisition.ts` unchanged. The spike and B-09 both cover prohibited addresses, mixed DNS answers, redirect downgrades, and byte limits on the selected runtime. The POST handler still does no network I/O. No new `fetch(userUrl)` anywhere. |
 
-E2E keeps `BETTER_CONTENT_E2E=1`. The API reads the scenario cookie (or an equivalent test header) and installs the fake provider. With the flag unset, that cookie is ignored and AvalAI is the only provider.
+E2E keeps `BETTER_CONTENT_E2E=1`. The API reads the scenario cookie (or equivalent test header) only in isolated test deployments. In B-AI persist an approved test scenario identifier with the job only in that environment so the separate worker uses the same fake. Production must fail startup if the E2E flag is enabled. With the flag unset, that cookie is ignored and AvalAI is the only provider.
 
 ## 7. Testing, CI, and local deployment
 
@@ -473,7 +479,7 @@ Keep Vitest. The suite, the Postgres integration harness, and the `vi.mock` styl
 | Postgres integration | `packages/domain`, `apps/api` | Authorization, transactions, idempotency, job leases, cross-workspace rejection. Existing tests move with the code. |
 | Contract | `apps/api` | Every `operationId`: one authenticated success, one logged-out 401, one cross-workspace 403 or 404. Shapes match the YAML. |
 | Component | `apps/web` | Ported Testing Library tests for editor, DNA, ideas, assets. Locale and `dir` included. |
-| Playwright | `e2e/` | The six current journeys, retargeted at the SPA in F-10. Deterministic fakes only. One Persian/RTL pass. |
+| Playwright | `e2e/` | The six current journeys, retargeted at the SPA in F-10A. Deterministic fakes only. One Persian/RTL pass. |
 | Manual | Documented in the ticket | Responsive EN and FA, session expiry, upload, teleprompter, mixed-direction text. |
 
 Do not call AvalAI or a real bucket from CI.
@@ -484,11 +490,11 @@ Extend `.github/workflows/ci.yml`. Keep the Postgres 18 service and the three da
 
 1. Keep `prettier --check` green. The `tsconfig.json` formatting warning is fixed in this planning pull request. Later tickets must not reintroduce it.
 2. Install the pinned runtime from the spike, plus Node 24 while the Next app remains.
-3. Frozen lockfile install (`bun install --frozen-lockfile`, or `npm ci` if the spike selected Node).
+3. Frozen lockfile install using the package manager selected in B-00, independently of the runtime.
 4. Contract typecheck: generated types are clean. Contract tests validate response bodies, not only status codes.
 5. Format, lint, typecheck, including the restricted-import boundary.
 6. Domain and API tests, including the SSRF and job tests, on the selected runtime.
-7. Legacy Next build and the current Playwright suite, until F-10 replaces the suite. B-RETIRE removes the Next build.
+7. Keep the legacy Next build and critical Playwright journeys through the rollback window; add separate SPA parity and async E2E jobs. B-RETIRE removes the legacy checks. Run required jobs independently where practical so early failures do not hide later failures.
 8. Go tests and `backend:generate` stay until ADR-021 is accepted. The recommendation is to drop them at acceptance. The owner can keep them until B-RETIRE.
 9. Worker image build on the migration branch once Dockerfiles exist, at least as a start smoke, with resource limits set.
 
@@ -505,13 +511,13 @@ Services to add:
 | `worker` | `apps/worker/Dockerfile`, sharp optional deps, pinned ffprobe with a recorded checksum | Job loop. Same database and storage env as the API. Separate `AI_JOB_CONCURRENCY` and `MEDIA_JOB_CONCURRENCY`. Graceful shutdown stops new claims. |
 | `web` | Build SPA, then a static file server | Dev can skip this and use Vite. Compose's published stack serves the built files and proxies `/api`. |
 
-On Bun, the API Dockerfile runs `bun install --frozen-lockfile` and `bun src/index.ts`. The worker Dockerfile does the same and adds the pinned ffprobe. Neither uses `bun build --compile`. On Node, the same images use `npm ci` and `node`. Build-tool versions, including the Better Auth schema generator, are pinned. The image does not run `npx --yes auth@latest`.
+On Bun, the API Dockerfile runs `bun install --frozen-lockfile` and `bun src/index.ts`. The worker Dockerfile does the same and adds the pinned ffprobe. Neither uses `bun build --compile`. On Node, build the TypeScript into deployable JavaScript and run it with `node`; use the selected frozen package-manager install. Build-tool versions, including the Better Auth schema generator, are pinned. The image does not run `npx --yes auth@latest`.
 
 Environment variables stay the current set (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, AvalAI key, S3 settings, `FFPROBE_PATH`, `FFPROBE_EXPECTED_VERSION`). Secrets stay in the environment, not in the image.
 
 A production orchestrator beyond a single host running this compose file is an owner decision. The Dockerfiles are enough to run the three processes. Do not add Kubernetes manifests in this migration.
 
-Local developer loop after the skeleton exists:
+Local developer loop after the skeleton exists (B-00 documents commands for the selected package manager; these illustrate Bun workspaces):
 
 ```text
 bun run db:up
@@ -533,18 +539,18 @@ The review changed the sequence. Functional parity on the new processes comes be
 
 | Phase | What it proves | Users |
 | --- | --- | --- |
-| 0. Baseline | B-PRE-01. The 16 Content integration failures are understood and the current app's `npm run test` is green. The auth schema generator is pinned. The dependency audit is written down. | Current app only |
+| 0. Baseline | B-PRE-01. The 16 Content integration failures are understood and the entire current CI pipeline is green. The auth schema generator is pinned. The dependency audit is written down. | Current app only |
 | 1. Spike | B-SPIKE. Bun and Node both run the checklist. The owner picks the runtime. ADR-021 stays Proposed until this report exists. | Nobody |
 | 2. Acceptance | The owner accepts or amends ADR-021. Go feature work freezes. Go CI is dropped if the owner agrees, so later contract edits are not blocked by a tree scheduled for deletion. The Go source stays until phase 9. | Nobody |
 | 3. Extract | B-00 through B-02. Packages exist. Next.js still serves production through them. Behavior is unchanged. | Current app |
 | 4. Vertical slice | Sign-in, initialize/current workspace, and one DNA save and reload through the real API and the SPA, on a preview database. | Preview |
 | 5. Parity | Remaining screens and routes. Generation still blocks the request, as it does today. Asset jobs run on the new worker. Playwright is green, including the two-account cache test. | Preview |
-| 6. Async AI | `ai_jobs`, 202 responses, polling, concurrency limits, unknown-result policy, and worker alerts. | Preview, then a separate release |
+| 6. Async AI (optional before cutover) | B-AI and F-AI after F-10A; F-10B verifies async behavior. | Preview; separate production release after synchronous cutover and stabilization |
 | 7. Readiness | Mail transport if the owner wants verification, backups and a restore drill, security headers, resource limits, rollback rehearsal. | Preview |
 | 8. Cutover | Proxy switch. New processes own writes. Legacy code and images stay deployed and unused. | Production |
 | 9. Retirement | A later pull request deletes Next.js and Go after the stabilization window. | Production, no behavior change |
 
-Preview uses its own database. Production cutover is one switch of traffic and of the worker. It is not also the moment generation becomes async, and it is not the moment the old code is deleted.
+Preview uses its own database. The first production cutover is synchronous parity. Async AI may be prepared in preview, but is enabled in a separate release only after synchronous production stabilization and an async rollback rehearsal. Email and compiler remain independent opt-in releases. Legacy deletion is a later pull request.
 
 ### Spike checklist
 
@@ -561,29 +567,30 @@ B-SPIKE is a small harness, not the production apps. It records pass or fail for
 | AvalAI SDK | The client constructs, aborts on the existing timeout, and does not retry. A live call is optional and not part of CI. |
 | Vitest | The domain unit tests and one Postgres integration test run on the candidate runtime. |
 
+Use the production OS, architecture, container base and pinned versions. Record the service invocation and `process.versions` for each runtime. A Node-based test driver can exercise a separately launched Bun service but cannot prove in-process Bun compatibility. Pin ffprobe before media certification and run the real audio/video fixture corpus. Measure startup, idle/peak media RSS, API p50/p95 and errors under equal load, image size, test duration and debugging/maintenance friction. Record hardware, configuration, sample count and raw results. Correctness and security are hard gates; if both pass, prefer Node unless Bun has a documented material benefit, with the final choice made by the owner.
+
 The HTTP adapter in the spike is Elysia. If Elysia cannot run on the selected runtime, the spike retries the same two routes on Hono and records which adapter the migration will use. `packages/domain` imports neither.
 
 ### Cutover and rollback
 
-Rehearse this on a copy of production data before the real switch.
+Rehearse each release on a sanitized production-like copy with existing sessions, drafts, assets and queued jobs. The first production cutover is synchronous parity. Record image digests, proxy configuration, migration state, backup and restore procedure, and the designated operator.
 
-1. Stop deploying Go features. The Next.js app is still the only writer.
-2. Apply additive migrations only. Historical migration files are not rewritten.
-3. Start the new API and worker against the preview database and run the parity and, if included in that release, async checks.
-4. For the production switch, stop the old worker from claiming new jobs. Let it finish claims it already holds, or wait for those leases to expire.
-5. Point the proxy at the SPA and the new API. Start the new worker. One writer per aggregate.
-6. Watch the worker ready check, the oldest pending job age, auth failures, and error rates.
+1. Enter maintenance mode; reject all new mutations and session-changing requests on the old application, including direct access and server actions. Stop old workers from claiming new jobs.
+2. Drain in-flight HTTP requests (including AI calls), worker jobs and database transactions. Account for outstanding signed uploads; preserve finalize compatibility or document recovery. If draining exceeds the rehearsed timeout, abort the cutover or terminate writers and reconcile uncertain operations.
+3. Stop old API/Next and worker processes, close their database connections and prevent reconnection using deployment controls or distinct writer roles. Verify no legacy writer sessions remain. Lease expiry alone does not prove a worker has stopped.
+4. Take the agreed backup/checkpoint and apply reviewed additive migrations once. Verify schema compatibility with the rollback image.
+5. Start the new API, web and worker with exclusive writer ownership. Smoke-test through the actual proxy while maintenance mode is active.
+6. Enable traffic after sign-in, workspace, content, storage and worker checks pass. Observe error rates, latency, auth failures, queue age and readiness.
 
-Rollback:
+Rollback uses the same write barrier in reverse:
 
-1. Stop the new API from accepting new generation and upload requests.
-2. Stop the new worker from claiming.
-3. For every `ai_jobs` row still `PENDING` or `RUNNING`, mark the linked run failed with `PROVIDER_RESULT_UNKNOWN` or let a draining worker finish a call that already started. Do not leave a `PENDING` generation that the old Next.js app will never execute. The old app does not read `ai_jobs`.
-4. Leave `asset_jobs` rows in place. The old asset worker can claim them, because that table is unchanged.
-5. Point the proxy back at the previous Next.js image. Confirm sign-in with an existing session.
-6. Keep the new images available. Deletion is phase 9, after the owner calls the new system stable.
+1. Reject all new mutations and stop new claims. Drain HTTP and worker work; stop writers and fence remaining leases before starting old writers.
+2. If async AI was enabled, use one authorized reconciliation process to settle all nonterminal AI jobs, linked runs, batches or attempts and quota atomically. Without a provider-start marker use `INTERRUPTED`; with a marker but no durable result use `PROVIDER_RESULT_UNKNOWN`. Never dispatch again or overwrite a completed result. Verify no abandoned AI jobs and that the rollback image reads all persisted categories.
+3. Reconcile asset leases; preserve `asset_jobs` for the old worker only after the new worker is stopped and cannot commit. Retain storage and migration compatibility.
+4. Restore the previous image and proxy; smoke-test existing sessions, content and worker processing before reopening traffic. Verify exclusive writer ownership.
+5. Preserve images and logs. A database restore is a separate, owner-approved data-loss decision, not default rollback.
 
-A database backup restore is a different procedure and is rehearsed in phase 7. Rollback of the proxy is not a database restore.
+Before B-CUT, the owner approves quantitative thresholds based on baseline measurements. Roll back immediately for confirmed data loss, cross-workspace disclosure, duplicate writes or critical auth failure. Define sustained 5xx, latency and queue-age thresholds in the runbook. B-RETIRE requires at least seven consecutive days of normal production use without unresolved critical/high-severity migration incidents, successful backup/restore and rollback rehearsals, healthy critical workflows and queue metrics, and explicit owner approval. Low traffic alone is not evidence of parity. Preserve immutable release tags and rollback images.
 
 ### Risks
 
@@ -622,14 +629,14 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 - **Size:** M
 - **Depends on:** nothing in this migration
 - **Scope:** Investigate the 16 failures in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts`. Read ADR-016 and the V4 document rules. Decide whether a plain draft and `schemaVersion` 3 are still valid product behavior or stale tests. Fix the code or the tests to match that decision. Do not edit assertions until the decision is recorded in the ticket. Pin `auth:generate-schema` off `auth@latest`. Run a dependency audit and record advisories. Apply only upgrades that are security fixes and that pass the existing auth fixtures.
-- **Acceptance:** `npm run test` is green. The ticket states why each former failure was wrong or why the product changed. `format:check`, lint, and typecheck stay green. No new product feature.
+- **Acceptance:** The entire current CI workflow is green: format, lint, typecheck, unit and integration tests, contract generation, database migrations, Go checks while ADR-020 is accepted, production build and Playwright. No required step is skipped. Record why each former failure was wrong or why product behavior changed. No new product feature.
 
 ### B-SPIKE — Runtime feasibility
 
 - **Size:** M
 - **Depends on:** B-PRE-01
 - **Scope:** A throwaway harness that runs the checklist in section 8 on Bun and on Node, with Elysia, and with Hono if Elysia cannot run on the selected runtime. Write the pass/fail report into the ticket. Do not merge the harness into the production apps.
-- **Acceptance:** Every checklist row has a Bun result and a Node result. The report recommends one production runtime and one HTTP adapter. ADR-021 is still Proposed.
+- **Acceptance:** Every checklist row has a Bun result and a Node result, candidate-runtime execution evidence, pinned ffprobe fixture results and comparative measurements from section 8. The report recommends one runtime and HTTP adapter with reasons. ADR-021 is still Proposed.
 
 ### B-00 — Workspace skeleton and parity contract
 
@@ -704,35 +711,35 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 ### B-AI — Asynchronous generation
 
 - **Size:** L
-- **Depends on:** B-06, B-07, and B-09, and on parity Playwright being green
+- **Depends on:** B-06, B-07, and B-09, and F-10A
 - **Scope:** The `ai_jobs` migration, the section 6 failure rules, the 202 contract delta, `AI_JOB_CONCURRENCY`, the per-workspace running cap, and the queue-age alert.
-- **Acceptance:** A POST returns without waiting for AvalAI. A crash after `provider_call_started_at` does not call the provider again. A double POST creates one provider call. Quota is reserved and released as specified. Partial Content is not written.
+- **Acceptance:** A POST returns without waiting for AvalAI. A crash after `provider_call_started_at` does not call the provider again. A double POST creates one provider call. Independent workers cannot claim simultaneous jobs for one workspace; expired workers cannot mark dispatch or commit stale results. Pre-dispatch exhaustion produces `INTERRUPTED`; post-marker uncertainty produces `PROVIDER_RESULT_UNKNOWN`. Quota and output settlement are atomic. All schema and localized contract changes pass; the rollback image reads new failure categories. Partial Content is not written.
 
 ### B-EMAIL — Verification and password reset
 
 - **Size:** M
-- **Depends on:** B-03, parity, and a tested mail transport
-- **Scope:** The sender port, Better Auth callbacks, SPA links, and `requireEmailVerification` for new accounts only. No backfill of `email_verified`.
-- **Acceptance:** An existing user with `email_verified = false` still signs in. A new user, with the flag on, does not. Logs do not contain the token or the URL. The vendor SDK stays behind the port.
+- **Depends on:** B-CUT, F-10A, and a tested mail transport; independent product release
+- **Scope:** The sender port, Better Auth callbacks, SPA links, and the server-enforced account-specific verification policy in section 3. No backfill of `email_verified`.
+- **Acceptance:** An existing user with `email_verified = false` still signs in. A new unverified user cannot get a usable product session via any enabled auth flow. Verify password reset, email change, resend and expiry; no token or URL appears in logs. The vendor SDK stays behind the port.
 
 ### B-READY — Production readiness
 
 - **Size:** M
-- **Depends on:** B-09, and B-AI if that release includes async generation
+- **Depends on:** B-09 and F-10A for synchronous readiness; B-AI and F-10B for the separate async release
 - **Scope:** Compose services, Dockerfiles for the selected runtime, frozen lockfile, non-root image user where practical, memory and CPU limits, graceful worker shutdown, CSP and the usual security headers on the SPA, backup and a restore drill, S3 CORS for browser PUT, centralized structured logs, and the rollback rehearsal in section 8.
-- **Acceptance:** Compose comes up on a fresh database. The rollback rehearsal is written down with the result of one practice run. Images do not contain the auth secret. `bun build --compile` is not the deployable.
+- **Acceptance:** Compose comes up on a fresh database. The rehearsal covers in-flight HTTP mutations, worker claims, signed uploads and exclusive writer verification. Record results, alert thresholds, image digests and the restore drill. Images do not contain the auth secret. `bun build --compile` is not the deployable.
 
 ### B-CUT — Production cutover
 
 - **Size:** M
-- **Depends on:** B-READY and F-10
+- **Depends on:** B-READY, F-10A and F-11
 - **Scope:** Execute section 8 against production. Keep the previous image and the legacy source.
 - **Acceptance:** One writer. Sign-in works for an existing user. The worker ready check is green. A documented rollback path was rehearsed. Next.js and Go are still in the repository.
 
 ### B-RETIRE — Legacy deletion
 
 - **Size:** M
-- **Depends on:** B-CUT and the owner's stabilization call
+- **Depends on:** B-CUT, measurable stabilization gates in section 8 and explicit owner approval
 - **Scope:** Delete `src/app`, Next config, server-action wrappers, and `backend/` in a separate pull request.
 - **Acceptance:** No `next` dependency and no Go module. Historical Drizzle migrations still apply unchanged. Playwright stays green.
 
@@ -824,17 +831,24 @@ Frontend tickets start after B-00. The compiler stays off. MSW handlers remain f
 - **Scope:** The three auth pages deferred from F-03.
 - **Acceptance:** Tokens are submitted and not echoed. An existing unverified user is not blocked.
 
-### F-10 — Playwright
+### F-10A — Synchronous parity Playwright
 
 - **Size:** M
-- **Depends on:** F-05 through F-09, and F-AI when that phase is in the release
-- **Scope:** Retarget the six current specs. Add the two-account same-browser test and one open-redirect rejection. One Persian RTL journey.
-- **Acceptance:** E2E uses fakes only. The legacy Next Playwright run is removed in B-RETIRE, not duplicated forever.
+- **Depends on:** F-05 through F-09 and B-09
+- **Scope:** Retarget six current specs against the real API and worker with deterministic fakes. Cover synchronous generation, two-account isolation, late responses after logout, safe redirects and a Persian RTL journey.
+- **Acceptance:** Parity E2E passes before B-AI. Legacy critical E2E remains until B-RETIRE.
+
+### F-10B — Async AI Playwright
+
+- **Size:** M
+- **Depends on:** F-10A, B-AI and F-AI
+- **Scope:** Verify immediate 202, polling, reload/recovery, explicit retry after unknown outcome, stopped worker behavior and localized failures with deterministic fakes.
+- **Acceptance:** Async E2E and crash/concurrency tests pass before the separate async production release. Rehearse rollback with pending jobs and new failure categories.
 
 ### F-11 — Static hosting
 
 - **Size:** S
-- **Depends on:** F-10 and B-READY
+- **Depends on:** F-10A and B-READY
 - **Scope:** Production build, cache headers for hashed assets, `index.html` not cached as immutable, CSP, and the `lang`/`dir` script present in the built file.
 - **Acceptance:** A deep link such as `/fa/content-dna` reloads. The sign-in journey works against the composed API.
 
