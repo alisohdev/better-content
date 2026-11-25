@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.next-e2e/
+out/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.playwright-cli/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
