@@ -80,10 +80,14 @@ When this ADR is later accepted, the accepted shape is:
    dispatch-marker changes and async failure categories.
    The provider call stays outside any database transaction. A fenced, durable
    dispatch marker prevents automatic redispatch after an uncertain outcome.
-   Database-enforced workspace concurrency and atomic result/quota settlement
-   are required. Allow at most two claim attempts and no automatic provider
-   redispatch after the durable marker. Keep consumed quota on invoked and
-   unknown failures; release only uninvoked reservations. Preserve accepted
+   Database-enforced workspace concurrency is required. Allow at most two
+   dispatch-capable claims, and only while the job is nonterminal and unmarked.
+   Consume the reservation atomically with the fenced dispatch marker and
+   RUNNING transition before provider I/O. No further dispatch-capable claim
+   or automatic provider redispatch is allowed once the marker exists.
+   Terminal result and state persistence is a separate atomic transaction;
+   retain consumed quota on all marked outcomes, including unknown failures,
+   and release only unused reservations on unmarked terminal failures. Preserve accepted
    privacy rules and obtain explicit AI policy amendments before implementing
    changed lifecycle or failure categories. Never promise exactly-once
    external execution.
