@@ -30,6 +30,17 @@ Product invariants in ADRs 003–019 stay in force. ADR-009 still requires
 PostgreSQL jobs and forbids a second broker. ADR-012 still requires reviewed
 Drizzle migrations.
 
+The owner has confirmed that Better Content has no real users and that current
+database contents are disposable. The pre-launch cutover may recreate a named
+project database and serve canonical Content document V4 only. That exception
+does not amend ADR-004. New records keep structured Drafts, immutable Versions,
+acceptance, optimistic concurrency, authorization, and asset integrity.
+V1–V3 projection machinery is not a pre-launch acceptance gate and must not be
+built to rescue disposable rows. ADR-004 remains the rule for any database that
+holds real user documents. Preserving test accounts and sessions is not a
+pre-launch gate. The migration plan separates this recreate from the
+write-barrier procedure used once real user data exists.
+
 ## Decision
 
 This ADR stays Proposed until both of these exist:
@@ -194,3 +205,5 @@ phases. Rollback of the proxy is not rollback of in-flight `ai_jobs`.
   finish the move.
 - The migration plan owns the spike checklist, the job failure rules, the
   cutover and rollback steps, and the ticket list.
+- Do not drop a database whose URL is not the named pre-launch database. Do not
+  treat this exception as permission to discard real user data later.

@@ -4,6 +4,8 @@
 
 **This document is a plan.** It does not change product behavior. Until ADR-021 is Accepted, [ADR-020](adr/ADR-020-go-backend.md) and Phase 7 remain the accepted runtime direction. The revision changes the sequence: stabilize the current app, prove the runtime, reach functional parity, and only then change AI execution, email policy, and legacy deletion.
 
+**Pre-launch data.** The owner has confirmed there are no real users. Database contents today are disposable test and development data. The pre-launch cutover may recreate a verified project database and start from the target schema with canonical Content document V4. It does not preserve old drafts, old document versions, old AI snapshots, or test accounts. [ADR-004](adr/ADR-004-structured-content-storage.md) stays Accepted: new records still use structured Drafts, immutable Versions, optimistic concurrency, and the current acceptance rules. This exception does not delete that ADR and does not authorize rewriting a database that holds real user documents. The write-barrier procedure in section 8 remains the procedure for a later deployment that has real user data.
+
 Two agents execute the migration after acceptance. One owns the backend. One owns the frontend. They share `packages/contracts` and otherwise stay in separate directories. The baseline ticket and the spike are single-owner prerequisites, not parallel feature work.
 
 ## 1. Verified starting point
@@ -26,7 +28,7 @@ An earlier review described a Next.js app with server actions and no product RES
 | Vitest and Playwright | True. Unit plus Postgres integration via Vitest. Playwright specs: authentication, content DNA, ideas, content, content generation, assets. E2E selects the AI fake with `BETTER_CONTENT_E2E=1` and a scenario cookie. |
 | No deploy config | True. `compose.yaml` runs Postgres 18 only, host port `5433` by default. There is no Dockerfile and no production manifest. |
 | CI fails Prettier on `tsconfig.json` | The CI run on the first commit of this plan failed `prettier --check` on `tsconfig.json` only. The new docs were clean. This pull request formats that file. B-00 still has to keep `format:check` green after the workspace move. |
-| Content draft integration tests | Once Prettier passed, `npm run test` reached the Postgres suite and failed 16 tests in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts`. Saves of a plain draft throw `A structured Content Draft requires a structured document`, and several assertions still expect `schemaVersion` 3 while the service returns 4. `main` never ran this step, because Prettier failed first. Unit tests in the same job passed. This planning change does not touch those tests. B-PRE-01 investigates the intended rule and fixes them before any extraction. |
+| Content draft integration tests | Once Prettier passed, `npm run test` reached the Postgres suite and failed 16 tests in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts`. Saves of a plain draft throw `A structured Content Draft requires a structured document`, and several assertions still expect `schemaVersion` 3 while the service returns 4. `main` never ran this step, because Prettier failed first. Unit tests in the same job passed. This planning change does not touch those tests. B-PRE-01 aligns them to canonical V4. It does not add a V3 compatibility path to preserve disposable rows. |
 | Vulnerable `next`, `better-auth`, `zod`, `sharp` | Versions are recorded as above. This planning pass did not run `npm audit` and does not name CVEs. B-PRE-01 runs the audit. Only security fixes that pass the existing auth fixtures are applied before parity. Other upgrades wait. |
 
 ### What Phase 7 already built
@@ -72,7 +74,7 @@ Keep npm workspaces and the existing lockfile by default. B-00 may select Bun wo
 | Existing code | Under the selected runtime |
 | --- | --- |
 | Drizzle schema and `drizzle/0000`–`0018` | Move into `packages/db` unchanged. Keep using `drizzle-orm/node-postgres` and `pg`. Compatibility on both runtimes is a B-SPIKE gate. `drizzle-kit` still generates the next migration. No second migration tool. |
-| Domain Zod modules, document V1–V4 projections, queue rules, DNA readiness, SSRF address checks, media policy | Move with import-path edits. These are pure TypeScript. |
+| Domain Zod modules, the current V4 document contracts, queue rules, DNA readiness, SSRF address checks, media policy | Move with import-path edits. These are pure TypeScript. Do not add V1–V3 projection or checkpoint machinery so old disposable rows can be read. Existing projection code is not a pre-launch cutover dependency. |
 | Application services and Drizzle repositories | Move. Inject `userId` from the HTTP layer. Delete `cookies()` / `next/headers` from the service. Keep the E2E provider switch behind `BETTER_CONTENT_E2E`, reading a header or cookie in the API adapter. |
 | AvalAI adapters (`openai` SDK, 60s / 90s timeouts, `maxRetries: 0`) and the fake providers | Keep a shared provider factory: the API uses it for synchronous parity; the worker uses it in B-AI. The spike proves the SDK on the selected runtime. |
 | `controlled-remote-acquisition.ts`, sharp inspector, ffprobe inspector, S3 adapter | Move into the worker. See section 6 for native-binary rules. The behavior stays; the host process changes. |
@@ -112,7 +114,7 @@ Keep the existing pinned Better Auth version unless a security fix or the spike 
 
 1. Run the existing scrypt fixture at `.scratch/phase-07-go-backend-migration/fixtures/better-auth-scrypt-v1.json` and the session-cookie fixture beside it. A hash the current library accepts must still verify.
 2. Diff `auth:generate-schema` against `src/db/schema/auth.ts`. An unexpected column is a reviewed Drizzle migration, not a silent push.
-3. Keep `BETTER_AUTH_SECRET` stable across the cutover. Rotating it signs everyone out.
+3. Keep `BETTER_AUTH_SECRET` stable across a cutover that keeps the same database. The pre-launch recreate discards test accounts, so preserving their sessions is not a gate. A later cutover that keeps real accounts must keep this secret; rotating it signs everyone out.
 4. Keep `disableCSRFCheck: false`, `disableOriginCheck: false`, and an explicit `trustedOrigins` list of the public origin.
 
 Only in the separate post-cutover B-EMAIL/F-EMAIL release, after stabilization and a tested mail transport, email verification and password reset use Better Auth's own callbacks (`emailVerification.sendVerificationEmail`, `emailAndPassword.sendResetPassword`). The links point at SPA routes:
@@ -541,7 +543,7 @@ The review changed the sequence. Functional parity on the new processes comes be
 
 | Phase | What it proves | Users |
 | --- | --- | --- |
-| 0. Baseline | B-PRE-01. The 16 Content integration failures are understood and the entire current CI pipeline is green. The auth schema generator is pinned. The dependency audit is written down. | Current app only |
+| 0. Baseline | B-PRE-01. The 16 Content integration failures are aligned to canonical V4 and the entire current CI pipeline is green. The auth schema generator is pinned. The dependency audit is written down. | Current app only |
 | 1. Spike | B-SPIKE. Evaluate Node and Bun and their adapter pairs under section 8. Only eligible pairs qualify; prefer Node if both runtimes qualify unless Bun shows a measured material benefit. Stop if neither qualifies. The owner selects the eligible pair; ADR-021 remains Proposed pending explicit acceptance after full green CI and the report. | Nobody |
 | 2. Acceptance | The owner accepts or amends ADR-021. Go feature work freezes. Go CI is dropped if the owner agrees, so later contract edits are not blocked by a tree scheduled for deletion. The Go source stays until phase 9. | Nobody |
 | 3. Extract | B-00 through B-02. Packages exist. Next.js still serves production through them. Behavior is unchanged. | Current app |
@@ -575,7 +577,18 @@ Test Elysia on both runtime candidates that pass runtime-level checks. If Elysia
 
 ### Cutover and rollback
 
-Rehearse each release on a sanitized production-like copy with existing sessions, drafts, assets and queued jobs. The first production cutover is synchronous parity. Record image digests, proxy configuration, migration state, backup and restore procedure, and the designated operator.
+The first production cutover is synchronous parity. Record image digests, proxy configuration, migration state, and the designated operator.
+
+Two procedures exist. Use only the one that matches the data.
+
+**Pre-launch recreate.** There are no real users. Old drafts, document versions, AI snapshots, and test accounts are disposable. This is the procedure for the first cutover.
+
+1. The operator names the database in the runbook before the change. The command may run only when `DATABASE_URL` equals that named project development, test, or pre-launch database. If the URL is unset, points at an unnamed host, or the operator has not confirmed the data is disposable, stop. Do not drop an unknown or shared database.
+2. Stop the old app and worker from writing. There is no historical conversion and no requirement to keep existing sessions.
+3. Recreate that database, or replace it with a new empty database, and apply the reviewed migration journal from the start. Historical migration files are not rewritten ([ADR-012](adr/ADR-012-drizzle-migrations.md)). The schema that results is the target schema. New Content documents are canonical V4.
+4. Start the new API, SPA, and worker as the only writers. Smoke-test a newly created account, a V4 draft save and acceptance, and one asset upload. Rollback of this cutover is redeploying the previous image against a newly created empty database, not restoring disposable rows.
+
+**Later cutover, once real user data exists.** Rehearse on a sanitized copy that contains sessions, drafts, assets, and queued jobs. The numbered steps below are this procedure. They are not a pre-launch acceptance gate.
 
 1. Enter maintenance mode; reject all new mutations and session-changing requests on the old application, including direct access and server actions. Stop old workers from claiming new jobs.
 2. Drain in-flight HTTP requests (including AI calls), worker jobs and database transactions. Account for outstanding signed uploads; preserve finalize compatibility or document recovery. If draining exceeds the rehearsed timeout, abort the cutover or terminate writers and reconcile uncertain operations.
@@ -600,7 +613,7 @@ Before any later async release, repeat the write barrier, rehearsal and reviewed
 | --- | --- | --- |
 | ADR-020 is still Accepted | Agents will keep building Go until the status lines change. | Acceptance is a separate owner act, after the spike. |
 | Two unfinished backends | Phase 7 is far along and unused by the UI. | Freeze Go features at acceptance. Delete the tree only after stabilization. |
-| Sixteen red integration tests | Refactoring has no safety net while they fail. | B-PRE-01 must fix them before ADR-021 acceptance or extraction; this proposal does not establish a green baseline. It does not retarget assertions until the V3 versus V4 rule is confirmed. |
+| Sixteen red integration tests | Refactoring has no safety net while they fail. | B-PRE-01 aligns them to canonical V4 before ADR-021 acceptance or extraction. This proposal does not establish a green baseline. It does not add a V3 write path to satisfy the old assertions. |
 | Too many changes at once | A production incident would be unattributable. | Parity, async AI, email, compiler, and deletion are separate phases. |
 | Runtime or adapter fails a critical check | sharp, ffprobe, DNS pinning or adapter integration may fail. | Section 8 selects only eligible pairs; prefer Node if both runtimes pass unless Bun shows a material benefit. |
 | Unknown AvalAI outcome | A crash after the provider accepts the call can bill twice if retried blindly. | No automatic second call. The user retries explicitly. |
@@ -630,8 +643,8 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 
 - **Size:** M
 - **Depends on:** nothing in this migration
-- **Scope:** Investigate the 16 failures in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts`. Read ADR-016 and the V4 document rules. Decide whether a plain draft and `schemaVersion` 3 are still valid product behavior or stale tests. Fix the code or the tests to match that decision. Do not edit assertions until the decision is recorded in the ticket. Pin `auth:generate-schema` off `auth@latest`. Run a dependency audit and record advisories. Apply only upgrades that are security fixes and that pass the existing auth fixtures.
-- **Acceptance:** The entire current CI workflow is green: format, lint, typecheck, unit and integration tests, contract generation, database migrations, Go checks while ADR-020 is accepted, production build and Playwright. No required step is skipped. Record why each former failure was wrong or why product behavior changed. No new product feature.
+- **Scope:** The 16 failures in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts` expect a plain draft and `schemaVersion` 3. The service requires a structured document and returns version 4. The owner has confirmed that pre-launch rows are disposable and that the canonical document is V4, so those assertions are stale. Update the tests to that current rule. Do not add a V3 persistence or projection path to make the old assertions pass. Do not change Draft, Version, acceptance, optimistic concurrency, or authorization behavior for records the service creates. Pin `auth:generate-schema` off `auth@latest`. Run a dependency audit and record advisories. Apply only upgrades that are security fixes and that pass the existing auth fixtures.
+- **Acceptance:** The entire current CI workflow is green: format, lint, typecheck, unit and integration tests, contract generation, database migrations, Go checks while ADR-020 is accepted, production build and Playwright. No required step is skipped. The ticket records that the failures were stale V3 assertions against the V4 rule. No new product feature and no historical-document migration.
 
 ### B-SPIKE — Runtime feasibility
 
@@ -666,7 +679,7 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 - **Size:** M
 - **Depends on:** B-02 and the spike's runtime choice
 - **Scope:** Boot the API. Mount Better Auth at `/api/auth` with the current secret and origin rules. Add the error mapper, request id, origin check on mutations, health routes, and the contract-test harness. Upgrade Better Auth only as far as the fixture gate and the audit require.
-- **Acceptance:** A user created by the current app signs in. An existing session cookie is honored when the secret matches. A foreign `Origin` fails closed. Logs contain no tokens.
+- **Acceptance:** A user created with the current Better Auth library and secret signs in on the new API. Preserving accounts from the disposable pre-launch database is not required. A foreign `Origin` fails closed. Logs contain no tokens.
 
 ### B-04 — Workspace initialize and read
 
@@ -735,8 +748,8 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 
 - **Size:** M
 - **Depends on:** B-READY, F-10A and F-11
-- **Scope:** Execute the synchronous cutover in section 8 against production; exclude all async AI code/schema migrations, async contract deltas, email features and compiler changes from this release. Keep the previous image and the legacy source.
-- **Acceptance:** One writer. Sign-in works for an existing user. The worker ready check is green. A documented rollback path was rehearsed. The parity migration manifest and deployed schema contain no async additions. Next.js and Go are still in the repository.
+- **Scope:** Execute the synchronous cutover in section 8. The pre-launch path recreates the named disposable database. The write-barrier path applies only after real user data exists. Exclude all async AI code/schema migrations, async contract deltas, email features and compiler changes from this release. Keep the previous image and the legacy source.
+- **Acceptance:** One writer. A newly created account signs in and saves a V4 document. The worker ready check is green. The recreate was limited to the named database, and the rollback redeploy was rehearsed. The parity migration manifest and deployed schema contain no async additions. Next.js and Go are still in the repository. Old sessions and old document versions were not a gate.
 
 ### B-RETIRE — Legacy deletion
 
@@ -863,10 +876,10 @@ Frontend tickets start after B-00. The compiler stays off. MSW handlers remain f
 
 ## 11. Definition of done for the migration
 
-- B-PRE-01 is green and the V3/V4 decision is written down.
+- B-PRE-01 is green against canonical V4. No V1–V3 rescue path was added.
 - The spike report exists, and the accepted ADR names the runtime and the HTTP adapter it selected.
 - ADR-021 is Accepted only after that, and the superseded status lines are updated in that change.
-- Existing password hashes sign in. Sessions survive when the secret is unchanged.
+- The scrypt fixture still verifies. The pre-launch cutover recreates the named disposable database and does not require old sessions to survive. A later cutover that keeps real accounts keeps `BETTER_AUTH_SECRET`.
 - `email_verified` is not backfilled. Verification and reset, if shipped, follow B-EMAIL.
 - Parity routes have real HTTP contract tests that validate requests and response bodies against OpenAPI.
 - The parity release contains no async schema, contract or feature changes. Async generation, if separately shipped after stabilization, follows the unknown-result rule, accepted quota/privacy policies and two concurrency pools.
