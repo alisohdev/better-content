@@ -25,7 +25,7 @@ An earlier review described a Next.js app with server actions and no product RES
 | Zod contracts | True. Zod 4 (`^4.4.3`) validates domain input, env, and forms (React Hook Form). |
 | Vitest and Playwright | True. Unit plus Postgres integration via Vitest. Playwright specs: authentication, content DNA, ideas, content, content generation, assets. E2E selects the AI fake with `BETTER_CONTENT_E2E=1` and a scenario cookie. |
 | No deploy config | True. `compose.yaml` runs Postgres 18 only, host port `5433` by default. There is no Dockerfile and no production manifest. |
-| CI fails Prettier on `tsconfig.json` | Recorded by the Phase 7 work notes: `npm run format:check` fails on the unchanged `tsconfig.json` and passes on the files those notes touched. This planning pass did not re-run Prettier. Fix it in ticket B-00 so the new CI job is actually green. |
+| CI fails Prettier on `tsconfig.json` | The CI run on the first commit of this plan failed `prettier --check` on `tsconfig.json` only. The new docs were clean. This pull request formats that file. B-00 still has to keep `format:check` green after the workspace move. |
 | Vulnerable `next`, `better-auth`, `zod`, `sharp` | Versions are pinned as above. This planning pass did not run `npm audit` and does not name CVEs. Ticket B-11 runs the audit and upgrades `better-auth`, `zod`, and `sharp` to patched releases. Next.js leaves the shipping runtime at cutover, which removes that advisory from production. |
 
 ### What Phase 7 already built
@@ -451,7 +451,7 @@ Do not call AvalAI or a real bucket from CI.
 
 Extend `.github/workflows/ci.yml`. Keep the Postgres 18 service and the three databases.
 
-1. Fix `tsconfig.json` formatting so `prettier --check` is green. That is a one-time formatting fix, tracked in B-00, with no behavior change.
+1. Keep `prettier --check` green. The `tsconfig.json` formatting warning is fixed in this planning pull request. Later tickets must not reintroduce it.
 2. Install the pinned Bun and Node 24 while the Next app remains. After cutover, Node is only needed if a tool still requires it.
 3. `bun install` (or `npm ci` if B-00 falls back).
 4. Contract typecheck: generated types are clean.
@@ -547,7 +547,7 @@ Frontend screen tickets use MSW until the paired backend ticket is merged, then 
 | Contract drift between the agents | Two people editing one product. | YAML is the only product contract. Generated types are checked in. Contract tests gate the API. |
 | Go CI becomes a tax | Keeping `backend/` compiling while the YAML changes. | Stubs may return 501 for `GET /workspaces/current`. Delete the tree in B-12, not before parity. |
 | Dual writers | Easy to "temporarily" leave a server action mounted. | Cutover checklist: one writer per aggregate. Preview database is not production. |
-| Prettier and dependency CVEs | `tsconfig.json` format, and the four flagged packages. | B-00 formats the file. B-11 audits and upgrades. This plan does not invent CVE ids. |
+| Prettier and dependency CVEs | `tsconfig.json` was the only Prettier failure on this branch, and this pull request formats it. `next`, `better-auth`, `zod`, and `sharp` stay on the versions named above. | B-11 runs the audit and upgrades. This plan does not invent CVE ids. |
 
 ### Open decisions for the owner
 
@@ -568,7 +568,7 @@ Each ticket ends with the legacy Next suite still passing, unless the ticket is 
 
 - **Size:** M
 - **Depends on:** ADR-021 Accepted
-- **Scope:** Add the workspace layout and empty `apps/*` packages. Create `packages/contracts`, move `api/openapi.yaml` there, leave a pointer so existing scripts find it, and apply the section 3 contract delta. Generate types. Add `AUTH.md`. Update ADR status lines now that 021 is Accepted. Format `tsconfig.json` so Prettier is clean. Prove the install story (Bun workspaces, or the npm-workspaces fallback).
+- **Scope:** Add the workspace layout and empty `apps/*` packages. Create `packages/contracts`, move `api/openapi.yaml` there, leave a pointer so existing scripts find it, and apply the section 3 contract delta. Generate types. Add `AUTH.md`. Update ADR status lines now that 021 is Accepted. Prove the install story (Bun workspaces, or the npm-workspaces fallback). `tsconfig.json` is already formatted by this planning pull request.
 - **Acceptance:** `format:check`, `typecheck`, and the OpenAPI generate check pass. The YAML contains `GET /workspaces/current`, the generation 202 responses, `ASSET_IN_USE`, and optional `rateLimitSource`. The four product `/auth/*` routes are gone. The Next app and the Go tests still build. No product behavior change.
 
 ### B-01 — Database package
