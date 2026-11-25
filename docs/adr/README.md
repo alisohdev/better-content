@@ -26,7 +26,7 @@ not replace their contents.
 | [018 — Assets and Content Lineage](ADR-018-workspace-assets-lifecycle-and-content-lineage.md) | Accepted | Assets | Changing Asset lifecycle, content references, or deletion eligibility. |
 | [019 — Private Managed Media](ADR-019-private-managed-media-storage-ingestion-and-access.md) | Accepted | Asset storage | Changing private media ingestion, storage, access, or validation. |
 | [020 — Go Backend and Authentication](ADR-020-go-backend.md) | Accepted | Runtime topology and authentication | Migrating the backend runtime from Next.js/TypeScript to Go. |
-| [021 — Bun, Elysia, and a React SPA](ADR-021-bun-elysia-react-spa.md) | Proposed | Runtime topology and authentication | Replacing the Next.js runtime with Bun, Elysia, and a React SPA. Read with the [migration plan](../MIGRATION-BUN-ELYSIA-REACT.md). Acceptance would supersede ADR-020. |
+| [021 — TypeScript API, worker, and React SPA](ADR-021-bun-elysia-react-spa.md) | Proposed, gated on a green test baseline and a runtime spike | Runtime topology and authentication | Replacing the Next.js runtime with a TypeScript API, a worker, and a React SPA. Read with the [migration plan](../MIGRATION-BUN-ELYSIA-REACT.md). Acceptance would supersede ADR-020. The spike may select Node instead of Bun. |
 
 ADR-014 remains accepted for the policy outside its explicitly superseded
 provider-selection portion. ADR-015 does not supersede its validation, privacy,

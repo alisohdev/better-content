@@ -1,9 +1,10 @@
-# ADR-021: Move the Runtime to Bun, Elysia, and a React SPA
+# ADR-021: Move the Runtime to a TypeScript API, a Worker, and a React SPA
 
-- **Status:** Proposed
+- **Status:** Proposed. Not eligible for acceptance until the baseline and runtime spike in the migration plan are done and the owner has read their results.
 - **Date:** 2026-11-25
+- **Revised:** 2026-11-25, after architecture review. This revision does not accept the ADR.
 - **Decision owners:** Product Architect / Technical Lead
-- **Approval:** Pending. The owner asked for this migration plan. This ADR does not amend ADR-020, ADR-001, ADR-002, or ADR-010 until its status is changed to Accepted.
+- **Approval:** Pending. This ADR does not amend ADR-020, ADR-001, ADR-002, or ADR-010.
 - **Applies to:** The runtime migration described in [the migration plan](../MIGRATION-BUN-ELYSIA-REACT.md)
 
 ## Context
@@ -15,138 +16,158 @@ email/password sessions. PostgreSQL, Drizzle, and the modular monolith under
 
 [ADR-020](ADR-020-go-backend.md) and Phase 7, both accepted, direct a different
 migration: rewrite the backend in Go, replace Better Auth, and keep the Next.js
-UI. That work is in progress. Go already implements identity, DNA, Ideas,
-Content, and a large part of Assets behind `api/openapi.yaml`. The Next.js UI
-does not call it yet. Ticket 07 is not closed, and the worker cutover has not
-started.
+UI. Go already implements a large part of that API. The Next.js UI does not
+call it. Continuing the Go rewrite and starting a second rewrite at the same
+time would leave two unfinished backends.
 
-The owner now wants the backend on Bun and Elysia, the frontend as a React 19
-SPA, and Better Auth kept so existing accounts still sign in. That choice
-conflicts with ADR-020. This ADR records the proposed replacement. The
-migration plan is the execution brief. Product invariants in ADRs 003–019 stay
-in force either way.
+The owner wants a TypeScript backend, a React SPA, and Better Auth kept so
+existing accounts still sign in. That conflicts with ADR-020. Two architecture
+reviews agreed with the target and rejected doing the runtime move, the
+framework move, auth features, dependency upgrades, async AI, and production
+cutover as one change. This revision records that sequencing.
+
+Product invariants in ADRs 003–019 stay in force. ADR-009 still requires
+PostgreSQL jobs and forbids a second broker. ADR-012 still requires reviewed
+Drizzle migrations.
 
 ## Decision
 
-When this ADR is accepted:
+This ADR stays Proposed until both of these exist:
 
-1. Run the product as three processes in one modular monolith: an Elysia HTTP
-   API on Bun, a Bun worker, and a static React 19 SPA. The SPA is built with
-   Vite, the React Compiler, TanStack Router, and TanStack Query.
-2. Keep Better Auth, upgraded in place, as the authentication implementation.
-   Preserve the existing `better-auth.session_token` cookie, the configured
-   secret, and password hashes. Prove an upgrade against the existing scrypt
-   and session fixtures before claiming that current users stay signed in.
-   Add email verification and password reset through Better Auth. Grandfather
-   existing `email_verified = false` accounts if verification becomes mandatory;
-   that data change is an owner decision recorded in the migration plan.
-3. Keep `api/openapi.yaml`, moved to `packages/contracts`, as the only product
-   API contract. Generate the TypeScript client with `openapi-typescript` and
-   call it with `openapi-fetch`. Elysia implements that contract. Eden Treaty
-   is not the client.
-4. Keep Zod 4 as the validation library for domain rules, route bodies, and
-   forms. Elysia consumes those schemas through Standard Schema. Do not add
-   TypeBox as a second schema language.
-5. Keep PostgreSQL as the system of record and Drizzle migrations as the only
-   schema-change mechanism. Move Idea and Content generation onto the same
-   PostgreSQL job model ADR-009 already requires, in a new AI job table. The
-   HTTP request enqueues work and returns. The worker performs the provider
-   call outside a database transaction.
-6. Keep English and Persian, locale-prefixed URLs, and logical CSS. Replace the
-   Next.js integration of `next-intl` with `use-intl` and TanStack Router.
+1. A green `npm run test` on the current Next.js app, after the 16 Content
+   draft integration failures are investigated and fixed according to the
+   actual product rule. Assertions are not flipped until that rule is written
+   down.
+2. A runtime spike report. The spike runs the checklist in the migration plan
+   on Bun and on Node. The owner uses that report to choose the production
+   runtime. Bun is the candidate. Node is the fallback if sharp, ffprobe, the
+   SSRF client, Drizzle, Better Auth, S3, or the AvalAI SDK fails on Bun.
+
+When this ADR is later accepted, the accepted shape is:
+
+1. Three processes in one modular monolith: an HTTP API, a background worker,
+   and a static React 19 SPA. The SPA uses Vite, TanStack Router, and TanStack
+   Query. The React Compiler waits until that SPA has functional parity. It is
+   not part of the migration.
+2. The HTTP layer is a thin adapter over `packages/domain`. Elysia is the
+   candidate adapter on Bun. The domain package does not import Elysia, Hono,
+   or Next. If the spike rejects Bun, the same domain runs on Node behind a
+   compatible adapter. Hono with Zod OpenAPI is the Node adapter to try if
+   Elysia cannot run on Node, because this plan does not use TypeBox or Eden
+   Treaty, which are the main reasons to lock the server to Elysia.
+3. Keep Better Auth, upgraded only when a security fix or the spike requires
+   it, and only after the existing scrypt and session fixtures pass. Preserve
+   the `better-auth.session_token` cookie and `BETTER_AUTH_SECRET`. Do not add
+   email verification or password reset in the runtime cutover. Those are a
+   later product change. Do not set `email_verified = true` on existing rows.
+   An account that can sign in is not the same thing as a proven mailbox.
+4. Keep `api/openapi.yaml` as the only product contract. Generate the
+   TypeScript client with `openapi-typescript` and call it with `openapi-fetch`.
+   Eden Treaty is not the client. Contract tests validate live responses
+   against the OpenAPI schema. Zod remains the runtime validation library.
+5. Reach functional parity on the new processes while Idea and Content
+   generation still finish inside the request, as they do today. Only after
+   that parity is demonstrated, move generation onto a new `ai_jobs` table.
+   The provider call stays outside any database transaction. External provider
+   execution is at-least-once only when the worker can prove the previous
+   attempt never started the call. An unknown provider outcome does not
+   automatically call AvalAI again.
+6. Keep English and Persian, locale-prefixed URLs, and logical CSS. Replace
+   the Next.js integration of `next-intl` with `use-intl` and TanStack Router.
    Creator-content language stays independent of UI locale.
-7. Pause Phase 7. Delete the Go tree and the Next.js server at cutover, after
-   the SPA, API, and worker prove parity. Do not translate the Go sources line
-   by line and do not run Go and TypeScript writers for the same aggregate.
-
-ADRs 003–019 remain authoritative for their product invariants. ADR-012 still
-governs migrations. ADR-009 still forbids a second queue system. ADR-011 still
-governs the AI provider boundary. ADR-019 still governs private media and
-SSRF-safe ingestion.
+7. Freeze Go feature work when this ADR is accepted. Cut traffic over in one
+   rehearsed switch with a written rollback. Delete the Next.js server and the
+   Go tree in a later pull request, after a stabilization window. Do not run
+   two writers for the same aggregate.
 
 ## API, auth, and process boundary
 
 The browser talks to one origin. A reverse proxy serves the SPA and forwards
-`/api/auth` to Better Auth and `/api/v1` to Elysia. Cookies are `HttpOnly`,
+`/api/auth` to Better Auth and `/api/v1` to the API. Cookies are `HttpOnly`,
 `Secure` in production, and `SameSite=Lax`. State-changing product routes
-reject a missing or untrusted `Origin`. CORS is unused on that single origin.
+reject a missing or untrusted `Origin`. A read that inserts a workspace is a
+state-changing route. `GET /workspaces/current` does not create a workspace.
 
 Better Auth identifies the user. Every private product operation also proves
-workspace membership and resource ownership. A client-supplied id is not
-authorization.
+workspace membership and resource ownership. The SPA clears its query cache on
+sign-out, session expiry, and user change. A post-login redirect accepts only
+a same-site locale path.
 
-The API and the worker share `packages/domain` and `packages/db`. HTTP handlers
-and the worker loop are thin adapters. Domain transactions, idempotency,
-lineage, and error categories stay as they are today.
+The API and the worker share `packages/domain` and `packages/db`. `apps/web`
+cannot import those packages. Package exports, ESLint restrictions, and a
+production-bundle check enforce that boundary.
 
 ## Consequences
 
 ### Positive
 
 - Domain TypeScript, Drizzle schema, Zod contracts, presentation components,
-  and the OpenAPI document are reused instead of rewritten in another language.
+  and the OpenAPI document are reused.
 - Existing Better Auth password hashes and sessions stay on the library that
   created them.
-- The SPA and the API can be built by separate agents against one contract.
-- Long AI calls leave the request path, which ADR-009 already anticipated.
+- The SPA and the API can be built against one contract.
+- A failed Bun spike can fall back to Node without another architecture rewrite.
+- Async AI, email verification, and legacy deletion are separate from the
+  runtime move, so a failure has one cause to inspect.
 
 ### Tradeoffs accepted
 
-- Phase 7's Go implementation is abandoned after cutover. Its OpenAPI document
-  and behavioral tests are the part that carries forward.
-- The SPA gives up server rendering. The migration plan treats first-paint
-  direction and the signed-out flash as the losses that need a design, and
-  treats SEO and RSC as irrelevant to this authenticated product.
-- Until cutover, `packages/domain` must run on both Node (the legacy Next app)
-  and Bun (the new API and worker).
-- A Bun worker image must include sharp's native libvips and a pinned
-  `ffprobe`. A single-file `bun build --compile` binary is not the worker
-  deployable.
+- Phase 7's Go implementation stops receiving features once this ADR is
+  accepted, and is deleted only after the new system has been stable. Its
+  OpenAPI document and the TypeScript domain are what carry forward. Sunk
+  implementation cost is not a reason to finish the Go rewrite, and it is also
+  not a reason to delete the tree on the day of cutover.
+- The SPA gives up server rendering. First-paint direction and the signed-out
+  flash are the losses the plan designs for.
+- Until cutover, shared packages must run on Node, because the Next.js app
+  still serves users. The new API and worker run on the runtime the spike
+  selects.
+- AvalAI calls are not exactly-once if a worker dies after the provider
+  accepts the request and before the result is stored. The plan refuses an
+  automatic second call in that case and records a safe failure instead.
 
 ## Alternatives considered
 
 ### Continue ADR-020 (Go API, Next.js UI)
 
-This is the accepted plan today. It keeps a second language, replaces Better
-Auth, and still leaves the UI on Next.js, which the owner now wants to leave.
-Rejected if this ADR is accepted.
+Accepted today. It replaces Better Auth and keeps the UI on Next.js. Rejected
+as the destination if this ADR is later accepted. It stays in force until then.
 
-### Eden Treaty as the frontend client
+### Accept Bun before the spike
 
-Treaty infers types from the Elysia app. The frontend agent would import the
-backend, and the reviewable contract would be a TypeScript graph instead of
-`openapi.yaml`. The repository already has an OpenAPI 3.1 contract and an
-`openapi-typescript` check. Rejected.
+Rejected. Native image processing, ffprobe, DNS pinning, and the OpenAI SDK
+are the compatibility risks. The spike is the acceptance input.
 
-### TypeBox as the route schema language
+### Hono as the starting framework
 
-Elysia's native `t` generates OpenAPI easily, and the domain already has a
-large Zod 4 surface, including forms. A second schema language would duplicate
-that surface. Zod 4 is a Standard Schema and can feed Elysia validation.
-Rejected.
+Hono fits Zod and runs on Bun and Node. It is the documented fallback adapter.
+It is not the starting choice while Elysia remains unproven and unrejected.
+The domain does not depend on either one.
 
-### React Router as the SPA router
+### Eden Treaty, TypeBox, Redis, or a second migration tool
 
-React Router is a capable SPA router. This app's Ideas, Content, and Asset
-Library screens are search-param driven, and TanStack Router types those
-params end to end and pairs with TanStack Query. Server rendering is not a
-goal. TanStack Router is the choice.
+Rejected for the reasons in the migration plan. ADR-009 and ADR-012 still
+apply.
 
-### Put AI work on Redis, a hosted queue, or `asset_jobs`
+### Mark existing emails verified
 
-ADR-009 forbids a second broker. `asset_jobs` is constrained to asset types
-and a payload of exactly `{ assetId }`. A sibling AI job table with the same
-lease protocol keeps one worker process and one database.
+Rejected. Sign-in for current accounts continues with `email_verified` left
+as stored. Mandatory verification for new accounts waits until a real mail
+transport has been tested.
+
+### One cutover that also deletes Next.js and Go and enables async AI
+
+Rejected. Parity, async generation, cutover, and legacy deletion are separate
+phases. Rollback of the proxy is not rollback of in-flight `ai_jobs`.
 
 ## Constraints and follow-up
 
-- Implementation waits until this ADR is Accepted.
-- On acceptance, update the status lines of ADR-001, ADR-002, ADR-010, and
-  ADR-020 so the index does not send agents down Phase 7. Do that in the
-  first implementation ticket, not in this proposal.
-- If a Better Auth upgrade cannot verify the existing scrypt hashes, or Bun
-  cannot match the sharp and `ffprobe` fixture corpus, stop the affected
-  cutover and ask the owner. Do not force password resets or weaken media
-  checks to finish the move.
-- The migration plan owns phasing, the route inventory, and the two agent
-  ticket lists.
+- Do not start the migration, and do not change this status to Accepted, in
+  the pull request that only updates the plan.
+- On a later acceptance, update the status lines of ADR-001, ADR-002, ADR-010,
+  and ADR-020. Freeze Go feature work in that same change.
+- If the spike fails and Node also fails a product-critical check, stop and
+  ask the owner. Do not weaken SSRF, media inspection, or password checks to
+  finish the move.
+- The migration plan owns the spike checklist, the job failure rules, the
+  cutover and rollback steps, and the ticket list.
