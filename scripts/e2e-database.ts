@@ -58,7 +58,7 @@ export async function resetE2eDatabase(environment: EnvironmentValues): Promise<
   try {
     await migrate(database, { migrationsFolder: "drizzle" });
     await database.execute(
-      'TRUNCATE TABLE "workspace_members", "workspaces", "session", "account", "verification", "user" CASCADE',
+      'TRUNCATE TABLE "asset_jobs", "workspace_members", "workspaces", "session", "account", "verification", "user" CASCADE',
     );
   } finally {
     await pool.end();

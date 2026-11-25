@@ -26,12 +26,13 @@ const registry = new MapAssetJobHandlerRegistry()
   .register("DELETE_ASSET", createAssetDeletionHandler({ storage }));
 
 try {
-  await runAssetJobBatch({
+  const claimed = await runAssetJobBatch({
     database: db,
     workerId: "e2e-asset-runner-" + randomUUID(),
     registry,
     logger,
   });
+  if (claimed !== 1) throw new Error("Expected exactly one due Asset job.");
 } finally {
   await db.$client.end();
 }

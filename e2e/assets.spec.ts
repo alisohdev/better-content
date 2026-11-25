@@ -206,7 +206,7 @@ test("EN/LTR persists upload, READY selection, autosave, acceptance, and history
   await directionDialog.locator("#direction-type").selectOption("BROLL_CUE");
   await directionDialog.getByLabel("Description").fill("Cover the opening");
   await directionDialog.getByRole("button", { name: "Add" }).click();
-  await edit.getByRole("button", { name: "Select media" }).click();
+  await edit.getByRole("button", { name: /Manage media for B-roll.*Cover the opening/ }).click();
   const picker = page.getByRole("dialog", { name: "Select media" });
   await picker.getByRole("button").filter({ hasText: "B-roll cover" }).click();
   await picker.getByRole("button", { name: "Use media" }).click();
