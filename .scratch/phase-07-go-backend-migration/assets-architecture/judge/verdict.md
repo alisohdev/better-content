@@ -1,0 +1,42 @@
+# Independent cross-judge verdict
+
+Choose **Candidate A as the base**, with the corrections below. Both candidates score **22/25**. A wins the tie on interface depth: it preserves the existing Content transaction flow and hides the same substantial storage/media/security protocols behind fewer interfaces and package dependencies. B is viable after contract repairs; its transaction-capability design is meaningful, rather than a forwarding facade, but costs more boundaries than this port currently requires.
+
+I read the common prompt/rubric, grounding, and both candidates end to end. I also checked Tickets 07/08, the approved Phase 7 specification, Phase 6 deployment checklist, architect red flags, and the current Content attachment and Asset deletion/job-creation implementations. This is a design assessment; no media parity, provider compatibility, or runtime test pass is claimed.
+
+## Scores
+
+| Rubric criterion | A | B | Reason |
+| --- | ---: | ---: | --- |
+| 1. Phase 6/Ticket 07 invariants; I/O outside transactions | 4 | 5 | Both specify staged acquisition, immutable publication, full persisted-byte reinspection, private capabilities, fail-closed references, and short SQL transactions. A additionally proposes an API-side exhausted-cleanup rearm without resolving its lock order or demonstrating that this change preserves the current migration contract. B explicitly distinguishes immutable job admission from job-first recovery and database-time fencing. |
+| 2. Key/lifecycle/security boundaries | 4 | 4 | A's private namespace keys, reserved-original capability and lifecycle variants are coherent, but every file in its large package can construct/mutate those private representations. B creates a stronger pure-model boundary, but its evidence contracts are not yet internally consistent across the proposed packages. Both describe complete per-hop DNS pinning, bounded inspection and current-fence publication. |
+| 3. Acyclic Content coupling; Content-owned canonical references | 5 | 5 | A retains Content's current eligibility read/locks and projection writer. B replaces the eligibility helper with a transaction-local Assets operation while keeping projection writes in Content. Both dependency graphs are acyclic through the pure `content/document` subpackage; neither needs a Content service dependency or a second projection writer. |
+| 4. Small deep interface; no pass-throughs or split writers | 5 | 4 | A exposes complete operations and keeps SQL/provider coordination private, with one lifecycle owner. B's application API is also deep, and its nested internal boundary is valuable, but Store plus several transaction capabilities, model, adapters and the Content transaction seam add substantial internal vocabulary. Its broad `Save(Asset)` capability also means the new layers do not themselves prove a legal transition/fence. |
+| 5. Dependency order, deterministic tests and parity gates | 4 | 4 | Both start with independently captured legacy fixtures, preserve Sharp until exact normalized parity, use real PostgreSQL for races and deterministic external seams, and keep worker execution in Ticket 08. Neither has yet proved the image choice or provider contract. A's proposed govips dependency additionally burdens the API binary's build/link environment despite lazy worker initialization; B's standard-decoder trial carries considerable explicit EXIF/animation/rejection-parity work. |
+| **Total** | **22** | **22** | A is the narrower base; neither candidate is ready to implement verbatim. |
+
+## Required synthesis corrections
+
+1. **Make the lock/recovery protocol explicit.** A's locked DELETING Asset followed by cleanup-job rearm can invert the worker's job-then-Asset locking order. Ordinary API deduplication must not reset a terminal job or steal live work. Keep the current admission behavior; put any separately justified recovery transition behind one job-first operation. The current TypeScript `createAssetJob` inserts on conflict and returns existing evidence; it does not reset a failed row. Adding automatic rearm therefore needs contract justification, not an incidental migration change. Use database time for lease validity and specify the full lock order in the final design.
+2. **Keep Content's ownership precise.** Retaining its current eligibility SQL does not make it a second Asset lifecycle writer. Keep canonical extraction and projection writes there, and share the same ordered Asset-lock protocol for attachment/deletion. Do not copy projection repair into Assets. Invalid canonical documents must remain an explicit error/uncertain result, never an empty reference set.
+3. **Select the image adapter after evidence.** Preserve the fixture-first gate. A's native dependency is an evaluation candidate, not a commitment established by the architecture result. Record whether API builds require native libraries and prove the intended Windows/production targets before adopting that cost. Similar decoder ancestry and a pure-Go implementation are both insufficient evidence of parity.
+
+## Structural risks and rejected elements
+
+- **A: large-package bypass risk.** Unexported symbols prevent other domains from bypassing the module, but provide no separation among its own SQL, media and provider files. Keep destructive lifecycle SQL in a small set of transition functions with explicit fence arguments; do not let new helpers become alternate READY writers. The permanent-reservation and snapshot protocols must have one implementation each.
+- **B: evidence ownership is unresolved in the sketch.** `model.RequestDeletion` consumes `ReferenceEvidence`, while a sealed `ReferenceEvidence` is declared in `ports`. Importing ports from model would cycle; independently defining both would create mismatched types. An unexported marker also prevents postgres from implementing that ports interface directly. Put validated reference/workflow evidence values and their constructors in the pure model, and have ports return those values. Similarly, ports' `Subject` must refer directly to Workspace, rather than depending on the outer Assets alias. These are repairable, but invalidate the claim that all structural barriers are already settled.
+- **B: capability width.** Splitting SQL into `Store` and callbacks does not structurally forbid a closure from calling storage. Its proposed no-I/O-in-transaction assertion remains necessary. Do not import its full port graph into A simply to obtain that test seam; A's private injected adapters can support the same assertion.
+- **Both: filesystem capabilities require a real consumer.** A correctly flags existing `filesystem://` placeholders; B explicitly requires signed local handlers. The final plan must name the usable local PUT/read boundary and its method/expiry/length checks before claiming capability parity. Ticket 09 can wire UI callers, but a placeholder is not a working storage capability.
+
+## Grafts from B
+
+1. Adopt B's **job-first recovery and database-time fencing specification**, while retaining A's smaller implementation surface and avoiding an unapproved API retry behavior.
+2. Adopt B's **complete capability contract**: real signed filesystem handlers, signer-derived 900-second read expiry, and explicit local method/key/length enforcement. Close A's open placement question in the synthesized implementation sequence.
+
+The candidates otherwise converge strongly on durable snapshots, attempt-private acquisition keys, complete atomic publication, full reinspection, bounded reconciliation and fixture-first replacement. Do not merge their package layouts or add parallel promotion paths.
+
+## Self-score calibration
+
+A's 24/25 is optimistic about invariant completeness and the safety provided by one private package; the cleanup-rearm protocol and package-internal bypass risk deserve deductions. B's 23/25 is slightly optimistic about its type sketch: package-sealed evidence is not yet consistently owned. Both appropriately withheld a perfect parity/testing score, but fixture and live-provider claims remain unproven implementation gates, not executed evidence.
+
+**First implementation unit:** capture the persistent sanitized fixture corpus and exact old-runtime normalized baselines, then establish typed key and conditional-publication contracts before replacing inspection or implementing Ticket 08 execution. No source, tests, API contract, configuration or ticket state was changed by this judgment.

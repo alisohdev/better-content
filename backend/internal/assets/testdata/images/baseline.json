@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "generatedBy": "scripts/capture-asset-image-corpus.ts",
+    "sharpVersion": "0.35.4",
+    "libvipsVersion": "8.18.6",
+    "nodeVersion": "v24.19.0",
+    "source": "Synthetic pixels and deliberately malformed bytes; no creator data."
+  },
+  "fixtures": [
+    {
+      "name": "static-jpeg",
+      "sha256": "2ae3b369037e187e32d4c1d8a24c40936165e0b37a3ee4847d7ede216ee01927",
+      "sizeBytes": 268,
+      "declaredMediaType": "IMAGE",
+      "filename": "photo.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 268,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "static-png",
+      "sha256": "ea887fdbb01040d73b45e413ab721b92dc76029ddca3b1737f1e5cdecc8c01ec",
+      "sizeBytes": 95,
+      "declaredMediaType": "IMAGE",
+      "filename": "photo.png",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 95,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "static-webp",
+      "sha256": "739a39baa022d7fe47b014c997dd68ee687e3520c5ed0305ee3a706b08d4b23b",
+      "sizeBytes": 60,
+      "declaredMediaType": "IMAGE",
+      "filename": "photo.webp",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "WEBP",
+        "sizeBytes": 60,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "truncated-jpeg",
+      "sha256": "dd3554bd104902f7a5041f37ada4e6110d00051935648a0be2e65faa0ade4a83",
+      "sizeBytes": 134,
+      "declaredMediaType": "IMAGE",
+      "filename": "truncated.jpg",
+      "failureCode": "INVALID_MEDIA"
+    },
+    {
+      "name": "empty-file",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sizeBytes": 0,
+      "declaredMediaType": "IMAGE",
+      "filename": "empty.png",
+      "failureCode": "INVALID_MEDIA"
+    },
+    {
+      "name": "corrupt-jpeg",
+      "sha256": "d2558169651f8026dc3cb46f338353d765e5f5c95b21a7ff7b9b091b9db9e049",
+      "sizeBytes": 25,
+      "declaredMediaType": "IMAGE",
+      "filename": "corrupt.jpg",
+      "failureCode": "INVALID_MEDIA"
+    },
+    {
+      "name": "extension-mismatch",
+      "sha256": "2ae3b369037e187e32d4c1d8a24c40936165e0b37a3ee4847d7ede216ee01927",
+      "sizeBytes": 268,
+      "declaredMediaType": "IMAGE",
+      "filename": "photo.png",
+      "failureCode": "MEDIA_TYPE_MISMATCH"
+    },
+    {
+      "name": "declared-type-mismatch",
+      "sha256": "2ae3b369037e187e32d4c1d8a24c40936165e0b37a3ee4847d7ede216ee01927",
+      "sizeBytes": 268,
+      "declaredMediaType": "VIDEO",
+      "filename": "photo.mp4",
+      "failureCode": "MEDIA_TYPE_MISMATCH"
+    },
+    {
+      "name": "dimension-limit-exact",
+      "sha256": "92472a76c459fb06036bf71013422a87cf71a518b65c180974ad1556fcb37a15",
+      "sizeBytes": 264,
+      "declaredMediaType": "IMAGE",
+      "filename": "width-limit.png",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 264,
+        "width": 12000,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension-limit-over",
+      "sha256": "31d6ffc7d52f5dddc923ae99cf64abbda323c98b6b3446b00d90ca27a35c64af",
+      "sizeBytes": 264,
+      "declaredMediaType": "IMAGE",
+      "filename": "wide.png",
+      "failureCode": "MEDIA_LIMIT_EXCEEDED"
+    },
+    {
+      "name": "pixel-limit-exact",
+      "sha256": "d4b3ac57862cad78bf15f45ad2d01f61a419b4a82b34c8831687ba07fda386f6",
+      "sizeBytes": 799682,
+      "declaredMediaType": "IMAGE",
+      "filename": "pixel-limit.png",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 799682,
+        "width": 12000,
+        "height": 5000
+      }
+    },
+    {
+      "name": "pixel-limit-over",
+      "sha256": "299e7055f02b3aa9c99fcc88896208984529ff5f6b4026e3ba37053952c9bc1f",
+      "sizeBytes": 799841,
+      "declaredMediaType": "IMAGE",
+      "filename": "pixel-limit-over.png",
+      "failureCode": "MEDIA_LIMIT_EXCEEDED"
+    },
+    {
+      "name": "byte-limit-over",
+      "sha256": "e097e7c9321ca961721d74cfdd77b4bdbb434249950354483cb4e6f85d7e190e",
+      "sizeBytes": 10485761,
+      "declaredMediaType": "IMAGE",
+      "filename": "large.png",
+      "failureCode": "MEDIA_LIMIT_EXCEEDED"
+    },
+    {
+      "name": "exif-orientation-1",
+      "sha256": "162cc03ec1e9b6c8cedbc21a2c8b85ac8bce73759bb99b124a259bd5fb36d40e",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-1.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "exif-orientation-2",
+      "sha256": "f388296fd9e340fb94111d6818c66f797c448735949833aa7e7f0bcbe51935e6",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-2.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "exif-orientation-3",
+      "sha256": "13e5c65683149248d9c241f51ebefa871e76080f45f5a2361e44cb9935690d31",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-3.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "exif-orientation-4",
+      "sha256": "35e08c4006ba632d2df9e18b1c18ec567f680a1e0665f160ca115406a9f71ae3",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-4.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "exif-orientation-5",
+      "sha256": "1b98bf1eaf9d8cd75d90c77aaf620297cc0f8bac50809c54fbbb9f8c944468e2",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-5.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "exif-orientation-6",
+      "sha256": "fab52af5eebf37f6f429ae2e4e0ebba6a629669a4c4d0266ab5f25ed0f1c3ec7",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-6.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "exif-orientation-7",
+      "sha256": "d091c694f789dd8fe6d210e60c6d57e0dca4b454d3563968fbd9914ed653de87",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-7.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "exif-orientation-8",
+      "sha256": "164c81c4c8b2633b6955e97cca70ddd247dc0c5455c286157be10d9ba619c7be",
+      "sizeBytes": 956,
+      "declaredMediaType": "IMAGE",
+      "filename": "orientation-8.jpg",
+      "result": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "animated-webp",
+      "sha256": "30cb2e516f8c953b1a97ab5b6d4b79e7b9e83a1ee17efd1dcdb7908cc19d46a5",
+      "sizeBytes": 202,
+      "declaredMediaType": "IMAGE",
+      "filename": "animated.webp",
+      "failureCode": "UNSUPPORTED_MEDIA"
+    },
+    {
+      "name": "unsupported-tiff",
+      "sha256": "3b416e1c37b586aac9b996442798bf710eb858bd610709046d5fb65387f71dce",
+      "sizeBytes": 914,
+      "declaredMediaType": "IMAGE",
+      "filename": "unsupported.tiff",
+      "failureCode": "UNSUPPORTED_MEDIA"
+    }
+  ]
+}

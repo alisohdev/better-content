@@ -1,0 +1,18 @@
+{
+  "source": "Better Auth 1.7.3 / @better-auth/utils 0.4.2 Node implementation",
+  "purpose": "Non-secret cross-language password verification fixture; do not use as a real credential.",
+  "password": "Better Auth fixture - e\u0301 - 123",
+  "equivalentNfkcPassword": "Better Auth fixture - \u00e9 - 123",
+  "salt": "00112233445566778899aabbccddeeff",
+  "hash": "00112233445566778899aabbccddeeff:e0a6a687d13142f638cee5bf0502f2fe9dcb1d891de34b869bb7ae70d0613cfa544d87e96a1bb1d32d24c4a085eafb6e55a0e6b9dd9e37e312f4d29cf07c2a9c",
+  "algorithm": {
+    "name": "scrypt",
+    "normalization": "NFKC",
+    "N": 16384,
+    "r": 16,
+    "p": 1,
+    "derivedKeyBytes": 64,
+    "saltInput": "the stored 32-character hex text as UTF-8 bytes",
+    "encoding": "lowercase hexadecimal salt:derived-key"
+  }
+}

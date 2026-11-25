@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "generatedBy": "capture-asset-av-corpus.ts",
+    "ffmpegVersion": "8.1.2-full_build-www.gyan.dev",
+    "ffprobeVersion": "8.1.2-full_build-www.gyan.dev",
+    "provisional": true,
+    "source": "Synthetic H.264/AAC, MP3, AAC/M4A, PCM/WAV, and malformed bytes; no creator data."
+  },
+  "fixtures": [
+    {
+      "name": "video-h264-aac",
+      "sha256": "039927be8306d0e9d90536fbc2790476f51727c2544e28c2a2ef486d661ced8d",
+      "sizeBytes": 12412,
+      "declaredMediaType": "VIDEO",
+      "filename": "clip.mp4",
+      "probeExitCode": 0,
+      "probeOutput": "{\"streams\":[{\"index\":0,\"codec_name\":\"h264\",\"codec_long_name\":\"H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10\",\"profile\":\"High\",\"codec_type\":\"video\",\"codec_tag_string\":\"avc1\",\"codec_tag\":\"0x31637661\",\"mime_codec_string\":\"avc1.64000d\",\"width\":320,\"height\":240,\"coded_width\":320,\"coded_height\":240,\"has_b_frames\":2,\"sample_aspect_ratio\":\"1:1\",\"display_aspect_ratio\":\"4:3\",\"pix_fmt\":\"yuv420p\",\"level\":13,\"chroma_location\":\"left\",\"field_order\":\"progressive\",\"is_avc\":\"true\",\"nal_length_size\":\"4\",\"id\":\"0x1\",\"r_frame_rate\":\"25/1\",\"avg_frame_rate\":\"25/1\",\"time_base\":\"1/12800\",\"start_pts\":0,\"start_time\":\"0.000000\",\"duration_ts\":12800,\"duration\":\"1.000000\",\"bit_rate\":\"9160\",\"bits_per_raw_sample\":\"8\",\"nb_frames\":\"25\",\"extradata_size\":46,\"disposition\":{\"default\":1,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0},\"tags\":{\"creation_time\":\"2000-01-01T00:00:00.000000Z\",\"language\":\"und\",\"handler_name\":\"VideoHandler\",\"encoder\":\"Lavc62.28.102 libx264\"}},{\"index\":1,\"codec_name\":\"aac\",\"codec_long_name\":\"AAC (Advanced Audio Coding)\",\"profile\":\"LC\",\"codec_type\":\"audio\",\"codec_tag_string\":\"mp4a\",\"codec_tag\":\"0x6134706d\",\"mime_codec_string\":\"mp4a.40.2\",\"sample_fmt\":\"fltp\",\"sample_rate\":\"44100\",\"channels\":1,\"channel_layout\":\"mono\",\"bits_per_sample\":0,\"initial_padding\":0,\"id\":\"0x2\",\"r_frame_rate\":\"0/0\",\"avg_frame_rate\":\"0/0\",\"time_base\":\"1/44100\",\"start_pts\":0,\"start_time\":\"0.000000\",\"duration_ts\":44100,\"duration\":\"1.000000\",\"bit_rate\":\"70295\",\"nb_frames\":\"45\",\"extradata_size\":5,\"disposition\":{\"default\":1,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0},\"tags\":{\"creation_time\":\"2000-01-01T00:00:00.000000Z\",\"language\":\"und\",\"handler_name\":\"SoundHandler\"}}],\"format\":{\"nb_streams\":2,\"nb_programs\":0,\"nb_stream_groups\":0,\"format_name\":\"mov,mp4,m4a,3gp,3g2,mj2\",\"format_long_name\":\"QuickTime / MOV\",\"start_time\":\"0.000000\",\"duration\":\"1.000000\",\"size\":\"12412\",\"bit_rate\":\"99296\",\"probe_score\":100,\"tags\":{\"major_brand\":\"isom\",\"minor_version\":\"512\",\"compatible_brands\":\"isomiso2avc1mp41\",\"creation_time\":\"2000-01-01T00:00:00.000000Z\",\"encoder\":\"Lavf62.12.102\"}}}",
+      "result": {
+        "mediaType": "VIDEO",
+        "mediaFormat": "MP4",
+        "sizeBytes": 12412,
+        "width": 320,
+        "height": 240,
+        "durationMs": 1000,
+        "videoCodec": "H264",
+        "audioCodec": "AAC"
+      }
+    },
+    {
+      "name": "video-declared-audio",
+      "sha256": "039927be8306d0e9d90536fbc2790476f51727c2544e28c2a2ef486d661ced8d",
+      "sizeBytes": 12412,
+      "declaredMediaType": "AUDIO",
+      "filename": "clip.mp4",
+      "probeExitCode": 0,
+      "probeOutput": "{\"streams\":[{\"index\":0,\"codec_name\":\"h264\",\"codec_long_name\":\"H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10\",\"profile\":\"High\",\"codec_type\":\"video\",\"codec_tag_string\":\"avc1\",\"codec_tag\":\"0x31637661\",\"mime_codec_string\":\"avc1.64000d\",\"width\":320,\"height\":240,\"coded_width\":320,\"coded_height\":240,\"has_b_frames\":2,\"sample_aspect_ratio\":\"1:1\",\"display_aspect_ratio\":\"4:3\",\"pix_fmt\":\"yuv420p\",\"level\":13,\"chroma_location\":\"left\",\"field_order\":\"progressive\",\"is_avc\":\"true\",\"nal_length_size\":\"4\",\"id\":\"0x1\",\"r_frame_rate\":\"25/1\",\"avg_frame_rate\":\"25/1\",\"time_base\":\"1/12800\",\"start_pts\":0,\"start_time\":\"0.000000\",\"duration_ts\":12800,\"duration\":\"1.000000\",\"bit_rate\":\"9160\",\"bits_per_raw_sample\":\"8\",\"nb_frames\":\"25\",\"extradata_size\":46,\"disposition\":{\"default\":1,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0},\"tags\":{\"creation_time\":\"2000-01-01T00:00:00.000000Z\",\"language\":\"und\",\"handler_name\":\"VideoHandler\",\"encoder\":\"Lavc62.28.102 libx264\"}},{\"index\":1,\"codec_name\":\"aac\",\"codec_long_name\":\"AAC (Advanced Audio Coding)\",\"profile\":\"LC\",\"codec_type\":\"audio\",\"codec_tag_string\":\"mp4a\",\"codec_tag\":\"0x6134706d\",\"mime_codec_string\":\"mp4a.40.2\",\"sample_fmt\":\"fltp\",\"sample_rate\":\"44100\",\"channels\":1,\"channel_layout\":\"mono\",\"bits_per_sample\":0,\"initial_padding\":0,\"id\":\"0x2\",\"r_frame_rate\":\"0/0\",\"avg_frame_rate\":\"0/0\",\"time_base\":\"1/44100\",\"start_pts\":0,\"start_time\":\"0.000000\",\"duration_ts\":44100,\"duration\":\"1.000000\",\"bit_rate\":\"70295\",\"nb_frames\":\"45\",\"extradata_size\":5,\"disposition\":{\"default\":1,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0},\"tags\":{\"creation_time\":\"2000-01-01T00:00:00.000000Z\",\"language\":\"und\",\"handler_name\":\"SoundHandler\"}}],\"format\":{\"nb_streams\":2,\"nb_programs\":0,\"nb_stream_groups\":0,\"format_name\":\"mov,mp4,m4a,3gp,3g2,mj2\",\"format_long_name\":\"QuickTime / MOV\",\"start_time\":\"0.000000\",\"duration\":\"1.000000\",\"size\":\"12412\",\"bit_rate\":\"99296\",\"probe_score\":100,\"tags\":{\"major_brand\":\"isom\",\"minor_version\":\"512\",\"compatible_brands\":\"isomiso2avc1mp41\",\"creation_time\":\"2000-01-01T00:00:00.000000Z\",\"encoder\":\"Lavf62.12.102\"}}}",
+      "failureCode": "MEDIA_TYPE_MISMATCH"
+    },
+    {
+      "name": "audio-mp3",
+      "sha256": "531582ae0ee6bae3d737370e8ccdfa757642b577e58358549d8528cbcdfb990c",
+      "sizeBytes": 8586,
+      "declaredMediaType": "AUDIO",
+      "filename": "track.mp3",
+      "probeExitCode": 0,
+      "probeOutput": "{\"streams\":[{\"index\":0,\"codec_name\":\"mp3\",\"codec_long_name\":\"MP3 (MPEG audio layer 3)\",\"codec_type\":\"audio\",\"codec_tag_string\":\"[0][0][0][0]\",\"codec_tag\":\"0x0000\",\"mime_codec_string\":\"mp4a.40.34\",\"sample_fmt\":\"fltp\",\"sample_rate\":\"44100\",\"channels\":1,\"channel_layout\":\"mono\",\"bits_per_sample\":0,\"initial_padding\":0,\"r_frame_rate\":\"0/0\",\"avg_frame_rate\":\"0/0\",\"time_base\":\"1/14112000\",\"start_pts\":353600,\"start_time\":\"0.025057\",\"duration_ts\":14112000,\"duration\":\"1.000000\",\"bit_rate\":\"64000\",\"disposition\":{\"default\":0,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0}}],\"format\":{\"nb_streams\":1,\"nb_programs\":0,\"nb_stream_groups\":0,\"format_name\":\"mp3\",\"format_long_name\":\"MP2/3 (MPEG audio layer 2/3)\",\"start_time\":\"0.025057\",\"duration\":\"1.000000\",\"size\":\"8586\",\"bit_rate\":\"68688\",\"probe_score\":51,\"tags\":{\"encoder\":\"Lavf62.12.102\"}}}",
+      "result": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "MP3",
+        "sizeBytes": 8586,
+        "durationMs": 1000,
+        "audioCodec": "MP3 Layer III"
+      }
+    },
+    {
+      "name": "audio-mp3-wrong-extension",
+      "sha256": "531582ae0ee6bae3d737370e8ccdfa757642b577e58358549d8528cbcdfb990c",
+      "sizeBytes": 8586,
+      "declaredMediaType": "AUDIO",
+      "filename": "track.wav",
+      "probeExitCode": 0,
+      "probeOutput": "{\"streams\":[{\"index\":0,\"codec_name\":\"mp3\",\"codec_long_name\":\"MP3 (MPEG audio layer 3)\",\"codec_type\":\"audio\",\"codec_tag_string\":\"[0][0][0][0]\",\"codec_tag\":\"0x0000\",\"mime_codec_string\":\"mp4a.40.34\",\"sample_fmt\":\"fltp\",\"sample_rate\":\"44100\",\"channels\":1,\"channel_layout\":\"mono\",\"bits_per_sample\":0,\"initial_padding\":0,\"r_frame_rate\":\"0/0\",\"avg_frame_rate\":\"0/0\",\"time_base\":\"1/14112000\",\"start_pts\":353600,\"start_time\":\"0.025057\",\"duration_ts\":14112000,\"duration\":\"1.000000\",\"bit_rate\":\"64000\",\"disposition\":{\"default\":0,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0}}],\"format\":{\"nb_streams\":1,\"nb_programs\":0,\"nb_stream_groups\":0,\"format_name\":\"mp3\",\"format_long_name\":\"MP2/3 (MPEG audio layer 2/3)\",\"start_time\":\"0.025057\",\"duration\":\"1.000000\",\"size\":\"8586\",\"bit_rate\":\"68688\",\"probe_score\":51,\"tags\":{\"encoder\":\"Lavf62.12.102\"}}}",
+      "failureCode": "MEDIA_TYPE_MISMATCH"
+    },
+    {
+      "name": "audio-m4a",
+      "sha256": "0e84fda8b000817beca37baefdfb727d4cb3dae89cab83384f9af9d9a3666371",
+      "sizeBytes": 9978,
+      "declaredMediaType": "AUDIO",
+      "filename": "track.m4a",
+      "probeExitCode": 0,
+      "probeOutput": "{\"streams\":[{\"index\":0,\"codec_name\":\"aac\",\"codec_long_name\":\"AAC (Advanced Audio Coding)\",\"profile\":\"LC\",\"codec_type\":\"audio\",\"codec_tag_string\":\"mp4a\",\"codec_tag\":\"0x6134706d\",\"mime_codec_string\":\"mp4a.40.2\",\"sample_fmt\":\"fltp\",\"sample_rate\":\"44100\",\"channels\":1,\"channel_layout\":\"mono\",\"bits_per_sample\":0,\"initial_padding\":0,\"id\":\"0x1\",\"r_frame_rate\":\"0/0\",\"avg_frame_rate\":\"0/0\",\"time_base\":\"1/44100\",\"start_pts\":0,\"start_time\":\"0.000000\",\"duration_ts\":44100,\"duration\":\"1.000000\",\"bit_rate\":\"70295\",\"nb_frames\":\"45\",\"extradata_size\":5,\"disposition\":{\"default\":1,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0},\"tags\":{\"language\":\"und\",\"handler_name\":\"SoundHandler\"}}],\"format\":{\"nb_streams\":1,\"nb_programs\":0,\"nb_stream_groups\":0,\"format_name\":\"mov,mp4,m4a,3gp,3g2,mj2\",\"format_long_name\":\"QuickTime / MOV\",\"start_time\":\"0.000000\",\"duration\":\"1.000000\",\"size\":\"9978\",\"bit_rate\":\"79824\",\"probe_score\":100,\"tags\":{\"major_brand\":\"M4A \",\"minor_version\":\"512\",\"compatible_brands\":\"M4A isomiso2\",\"encoder\":\"Lavf62.12.102\"}}}",
+      "result": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "M4A",
+        "sizeBytes": 9978,
+        "durationMs": 1000,
+        "audioCodec": "AAC"
+      }
+    },
+    {
+      "name": "audio-wav",
+      "sha256": "c087187ef80798631ceac4eee8d43c8d4d441451576abdf45a8d7b7bd2269129",
+      "sizeBytes": 88278,
+      "declaredMediaType": "AUDIO",
+      "filename": "track.wav",
+      "probeExitCode": 0,
+      "probeOutput": "{\"streams\":[{\"index\":0,\"codec_name\":\"pcm_s16le\",\"codec_long_name\":\"PCM signed 16-bit little-endian\",\"codec_type\":\"audio\",\"codec_tag_string\":\"[1][0][0][0]\",\"codec_tag\":\"0x0001\",\"sample_fmt\":\"s16\",\"sample_rate\":\"44100\",\"channels\":1,\"bits_per_sample\":16,\"initial_padding\":0,\"r_frame_rate\":\"0/0\",\"avg_frame_rate\":\"0/0\",\"time_base\":\"1/44100\",\"duration_ts\":44100,\"duration\":\"1.000000\",\"bit_rate\":\"705600\",\"disposition\":{\"default\":0,\"dub\":0,\"original\":0,\"comment\":0,\"lyrics\":0,\"karaoke\":0,\"forced\":0,\"hearing_impaired\":0,\"visual_impaired\":0,\"clean_effects\":0,\"attached_pic\":0,\"timed_thumbnails\":0,\"non_diegetic\":0,\"captions\":0,\"descriptions\":0,\"metadata\":0,\"dependent\":0,\"still_image\":0,\"multilayer\":0}}],\"format\":{\"nb_streams\":1,\"nb_programs\":0,\"nb_stream_groups\":0,\"format_name\":\"wav\",\"format_long_name\":\"WAV / WAVE (Waveform Audio)\",\"duration\":\"1.000000\",\"size\":\"88278\",\"bit_rate\":\"706224\",\"probe_score\":99,\"tags\":{\"encoder\":\"Lavf62.12.102\"}}}",
+      "result": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "WAV",
+        "sizeBytes": 88278,
+        "durationMs": 1000,
+        "audioCodec": "PCM"
+      }
+    },
+    {
+      "name": "audio-declared-video",
+      "sha256": "531582ae0ee6bae3d737370e8ccdfa757642b577e58358549d8528cbcdfb990c",
+      "sizeBytes": 8586,
+      "declaredMediaType": "VIDEO",
+      "filename": "track.mp3",
+      "failureCode": "MEDIA_TYPE_MISMATCH"
+    },
+    {
+      "name": "corrupt-audio",
+      "sha256": "191098643f2a89e3fa8f03c2ca729b0f354338a572af15f8e1183104fe50e9c8",
+      "sizeBytes": 29,
+      "declaredMediaType": "AUDIO",
+      "filename": "corrupt.mp3",
+      "probeExitCode": 1,
+      "probeOutput": "{\r\n\r\n}\r\n",
+      "failureCode": "INVALID_MEDIA"
+    }
+  ]
+}

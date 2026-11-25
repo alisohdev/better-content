@@ -1,0 +1,7 @@
+{
+  "source": "better-call cookie signing implementation pinned by Better Auth 1.7.3",
+  "purpose": "Synthetic Go interoperability fixture; contains no real user session or secret.",
+  "secret": "better-auth-cookie-test-secret-32-chars",
+  "databaseSessionToken": "better-auth-session-fixture-token",
+  "cookieValue": "better-auth-session-fixture-token.iXt2ZZQlZMfyj2hkfi9bcpglEDNwkg%2F4npi69fd%2Fsgk%3D"
+}

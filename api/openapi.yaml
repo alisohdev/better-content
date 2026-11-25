@@ -1,0 +1,2270 @@
+openapi: 3.1.0
+info:
+  title: Better Content API
+  version: 1.0.0
+  description: The versioned contract between the Next.js presentation app and the Go backend.
+servers:
+  - url: /api/v1
+paths:
+  /auth/sign-up:
+    post:
+      operationId: signUp
+      summary: Create an account and start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpRequest"
+      responses:
+        "200":
+          description: Account created and session started
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "403":
+          $ref: "#/components/responses/OriginFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /auth/sign-in:
+    post:
+      operationId: signIn
+      summary: Authenticate with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInRequest"
+      responses:
+        "200":
+          description: Authenticated session
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/OriginFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /auth/sign-out:
+    post:
+      operationId: signOut
+      summary: Revoke the current session
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Session revoked and cookie cleared
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/ClearedSessionCookie"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+        "403":
+          $ref: "#/components/responses/OriginFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /auth/session:
+    get:
+      operationId: getSession
+      summary: Read and, when due, renew the current session
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Active session or no authenticated session
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/OptionalSessionCookie"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SessionResponse"
+                  - type: "null"
+        "403":
+          $ref: "#/components/responses/OriginFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/content-dna:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    get:
+      operationId: getCurrentContentDna
+      summary: Read current Content DNA
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Current Content DNA state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentContentDna"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+    put:
+      operationId: saveContentDna
+      summary: Save a Content DNA snapshot
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveContentDnaRequest"
+      responses:
+        "200":
+          description: Current snapshot after save
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentDnaVersion"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/content-dna/versions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    get:
+      operationId: listContentDnaVersions
+      summary: List Content DNA snapshots
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Content DNA version history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentDnaVersion"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/content-dna/versions/{versionId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - name: versionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getContentDnaVersion
+      summary: Read one Content DNA snapshot
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Content DNA snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentDnaVersion"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/ideas/generations:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      operationId: generateIdeas
+      summary: Generate a batch of 20 Ideas
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateIdeasRequest"
+      responses:
+        "200":
+          description: Existing or newly generated batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdeaGenerationResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "502":
+          $ref: "#/components/responses/InvalidProviderOutput"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+    get:
+      operationId: listIdeaGenerationHistory
+      summary: List Idea generation history
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Generation history and selected batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdeaGenerationHistoryResult"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/ideas/generations/{batchId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getIdeaGenerationBatch
+      summary: Read a generated Idea batch
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Batch status and canonical Ideas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdeaGenerationBatchDetail"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/ideas/generations/{batchId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: retryIdeaGenerationBatch
+      summary: Retry a failed Idea generation batch
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: New generation attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdeaGenerationResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "502":
+          $ref: "#/components/responses/InvalidProviderOutput"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/ideas:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    get:
+      operationId: getIdeaLibrary
+      summary: Read the Idea Library
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      parameters:
+        - name: statusFilter
+          in: query
+          schema:
+            type: string
+            enum: [ALL, NEW, SAVED, ACCEPTED, REJECTED]
+            default: NEW
+        - name: generationBatchId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Filtered Ideas and their generation lineage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdeaLibrary"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/assets/uploads:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      operationId: beginAssetUpload
+      summary: Create a private Asset upload session
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BeginAssetUploadRequest"
+      responses:
+        "201":
+          description: Upload session and short-lived private staging capability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeginAssetUploadResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/assets/external-url:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      operationId: createExternalURLAsset
+      summary: Queue ingestion from a validated HTTPS media URL
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExternalURLAssetRequest"
+      responses:
+        "201":
+          description: External media ingestion workflow was established
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateExternalURLAssetResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/assets:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    get:
+      operationId: getAssetLibrary
+      summary: Read a paginated Workspace Asset Library
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 1 }
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 400 }
+        - name: mediaType
+          in: query
+          schema: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+        - name: mediaTypes
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 2
+            items: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+        - name: assetIds
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 5
+            items: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, PROCESSING, READY, FAILED, DELETING] }
+      responses:
+        "200":
+          description: Workspace-authorized Asset metadata page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetLibraryResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/assets/{assetId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssetId"
+    patch:
+      operationId: renameAsset
+      summary: Rename a Workspace Asset
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameAssetRequest"
+      responses:
+        "200":
+          description: Renamed Asset metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetLibraryItem"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+    delete:
+      operationId: deleteAsset
+      summary: Request reference-safe Asset deletion
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "202":
+          description: Asset cleanup workflow was established
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteAssetResult"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/assets/{assetId}/upload-capability:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssetId"
+    post:
+      operationId: refreshAssetUploadCapability
+      summary: Refresh an open private Asset upload capability
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Refreshed bounded staging capability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetUploadCapability"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/assets/{assetId}/finalize-upload:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssetId"
+    post:
+      operationId: finalizeAssetUpload
+      summary: Validate staged bytes and queue Asset processing
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Processing workflow was established
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalizeAssetUploadResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/assets/{assetId}/read-capability:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssetId"
+    post:
+      operationId: issueAssetReadCapability
+      summary: Issue a short-lived private Asset read capability
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssetReadCapabilityRequest"
+      responses:
+        "200":
+          description: Short-lived private preview or download capability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetReadCapability"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/ideas/{ideaId}/decision:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - name: ideaId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateIdeaDecision
+      summary: Change an Idea decision
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIdeaDecisionRequest"
+      responses:
+        "200":
+          description: Updated Idea decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdeaDecision"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "404":
+          $ref: "#/components/responses/NotFoundFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/content-ideas/{ideaId}/content-history:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/IdeaId"
+    get:
+      operationId: getIdeaContentGenerationHistory
+      summary: Read Content generation Attempts for an Idea
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Idea-linked Content Attempt history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IdeaContentGenerationHistory" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/content-ideas/{ideaId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/IdeaId"
+    get:
+      operationId: getContentByIdea
+      summary: Read Content, history, and generation state for an Idea
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Content and generation history for one Idea
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentByIdea" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/content-ideas/{ideaId}/content-usage:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/IdeaId"
+    get:
+      operationId: getIdeaContentUsage
+      summary: Check whether an Idea has generated Content
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Content usage state for one Idea
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IdeaContentUsage" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/production-queue:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    get:
+      operationId: getProductionQueue
+      summary: Read accepted Ideas awaiting content generation
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Current production queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductionQueueItem"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+    put:
+      operationId: reorderProductionQueue
+      summary: Reorder the complete current production queue
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderProductionQueueRequest"
+      responses:
+        "200":
+          description: Queue after reorder
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductionQueueItem"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/contents/generations:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      operationId: generateContent
+      summary: Generate one Content document from an accepted Idea
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateContentRequest"
+      responses:
+        "200":
+          description: Existing or newly generated Content attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentGenerationResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailure"
+        "401":
+          $ref: "#/components/responses/AuthenticationFailure"
+        "403":
+          $ref: "#/components/responses/AuthorizationFailure"
+        "409":
+          $ref: "#/components/responses/ConflictFailure"
+        "429":
+          $ref: "#/components/responses/RateLimitFailure"
+        "502":
+          $ref: "#/components/responses/InvalidProviderOutput"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalFailure"
+  /workspaces/{workspaceId}/content-generation-attempts/{attemptId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AttemptId"
+    post:
+      operationId: retryContentGenerationAttempt
+      summary: Retry a failed Content generation Attempt with current Content DNA
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: New Content generation Attempt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentGenerationResult" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "409": { $ref: "#/components/responses/ConflictFailure" }
+        "429": { $ref: "#/components/responses/RateLimitFailure" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/content-generation-attempts/{attemptId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AttemptId"
+    get:
+      operationId: getContentGenerationAttemptDetail
+      summary: Read one Content generation Attempt
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Content generation Attempt and source Idea
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentGenerationAttemptDetail" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/content-generation-attempts/{attemptId}/result:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AttemptId"
+    get:
+      operationId: getContentGenerationAttemptResult
+      summary: Read generated Content for a completed Attempt
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Resulting Content, or null while the Attempt has no result
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ContentDetail"
+                  - type: "null"
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/contents:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    get:
+      operationId: listContents
+      summary: List Content in a workspace
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Content list ordered by most recent Draft edit
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ContentListItem" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/contents/{contentId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/ContentId"
+    get:
+      operationId: getContentDetail
+      summary: Read a Content Draft and immutable Version history
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Content detail with legacy-preserving projections
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentDetail" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/contents/{contentId}/draft:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/ContentId"
+    put:
+      operationId: saveContentDraft
+      summary: Save a Content Draft at the expected revision
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveContentDraftRequest" }
+      responses:
+        "200":
+          description: Saved Draft with compatibility projections
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentDraft" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "409": { $ref: "#/components/responses/ConflictFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/contents/{contentId}/acceptance:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/ContentId"
+    post:
+      operationId: acceptContent
+      summary: Accept the current Content Draft as an immutable Version
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptContentRequest" }
+      responses:
+        "200":
+          description: Accepted immutable Version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentAcceptanceResult" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "409": { $ref: "#/components/responses/ConflictFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/contents/{contentId}/teleprompter:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/ContentId"
+    get:
+      operationId: getContentTeleprompter
+      summary: Read the accepted Content Version as teleprompter blocks
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Accepted script projection or a safe unavailable status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentProductionView" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+  /workspaces/{workspaceId}/contents/{contentId}/edit-guide:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/ContentId"
+    get:
+      operationId: getContentEditGuide
+      summary: Read accepted edit directions and current Asset presentations
+      security:
+        - sessionCookie: []
+        - secureSessionCookie: []
+      responses:
+        "200":
+          description: Accepted edit-guide projection or a safe unavailable status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentProductionView" }
+        "400": { $ref: "#/components/responses/ValidationFailure" }
+        "401": { $ref: "#/components/responses/AuthenticationFailure" }
+        "403": { $ref: "#/components/responses/AuthorizationFailure" }
+        "404": { $ref: "#/components/responses/NotFoundFailure" }
+        "500": { $ref: "#/components/responses/InternalFailure" }
+components:
+  parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ContentId:
+      name: contentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AttemptId:
+      name: attemptId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdeaId:
+      name: ideaId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+    secureSessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Secure-better-auth.session_token
+  headers:
+    SessionCookie:
+      description: HttpOnly, same-site session cookie. Exact attributes are tested against auth compatibility fixtures.
+      schema:
+        type: array
+        items:
+          type: string
+    OptionalSessionCookie:
+      description: May renew the session; every Set-Cookie value must reach the browser through SSR.
+      schema:
+        type: array
+        items:
+          type: string
+    ClearedSessionCookie:
+      description: Expired session cookie.
+      schema:
+        type: array
+        items:
+          type: string
+  responses:
+    ConflictFailure:
+      description: Account or resource conflicts with existing state.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationFailure:
+      description: Input failed server-side validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AuthenticationFailure:
+      description: Credentials were invalid; the response does not reveal which field failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    OriginFailure:
+      description: Request origin or CSRF validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: The requested backend capability is not ready.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InvalidProviderOutput:
+      description: The AI provider returned output that failed canonical validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimitFailure:
+      description: Too many requests were received in the configured time window.
+      headers:
+        X-Retry-After:
+          description: Seconds until the current limit window resets.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AuthorizationFailure:
+      description: Workspace access is not available to this identity.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFoundFailure:
+      description: The requested resource is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalFailure:
+      description: The operation failed due to an internal error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    BeginAssetUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [mediaType, displayName, originalFilename, expectedUploadSizeBytes]
+      properties:
+        mediaType: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+        originalFilename: { type: string, minLength: 1, maxLength: 255 }
+        expectedUploadSizeBytes: { type: integer, minimum: 1 }
+        browserMimeType: { type: string, minLength: 1 }
+    BeginAssetUploadResult:
+      type: object
+      additionalProperties: false
+      required: [assetId, status, sourceType, mediaType, expectedUploadSizeBytes, capability]
+      properties:
+        assetId: { type: string, format: uuid }
+        status: { type: string, const: PENDING }
+        sourceType: { type: string, const: UPLOAD }
+        mediaType: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+        expectedUploadSizeBytes: { type: integer, minimum: 1 }
+        capability:
+          $ref: "#/components/schemas/AssetUploadCapability"
+    CreateExternalURLAssetRequest:
+      type: object
+      additionalProperties: false
+      required: [mediaType, displayName, sourceUrl]
+      properties:
+        mediaType: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+        sourceUrl: { type: string }
+    CreateExternalURLAssetResult:
+      type: object
+      additionalProperties: false
+      required: [assetId, status, sourceType, mediaType, sourceHost]
+      properties:
+        assetId: { type: string, format: uuid }
+        status: { type: string, const: PENDING }
+        sourceType: { type: string, const: EXTERNAL_URL }
+        mediaType: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+        sourceHost: { type: string }
+    AssetUploadCapability:
+      type: object
+      additionalProperties: false
+      required: [url, expiresAt, contentLength]
+      properties:
+        url: { type: string, format: uri }
+        expiresAt: { type: string, format: date-time }
+        contentLength: { type: integer, minimum: 1 }
+    AssetReadCapabilityRequest:
+      type: object
+      additionalProperties: false
+      required: [operation]
+      properties:
+        operation: { type: string, enum: [PREVIEW, DOWNLOAD] }
+    AssetReadCapability:
+      type: object
+      additionalProperties: false
+      required: [url, expiresAt, cacheControl, contentType, contentDisposition, rangeAllowed]
+      properties:
+        url: { type: string, format: uri }
+        expiresAt: { type: string, format: date-time }
+        cacheControl: { type: string, const: "private, no-store" }
+        contentType: { type: string, minLength: 1 }
+        contentDisposition: { type: string, minLength: 1 }
+        rangeAllowed: { type: boolean }
+    FinalizeAssetUploadResult:
+      type: object
+      additionalProperties: false
+      required: [assetId, status, workflowEstablished]
+      properties:
+        assetId: { type: string, format: uuid }
+        status: { type: string, const: PENDING }
+        workflowEstablished: { type: boolean, const: true }
+    RenameAssetRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+    DeleteAssetResult:
+      type: object
+      additionalProperties: false
+      required: [assetId, status, cleanupWorkflowEstablished]
+      properties:
+        assetId: { type: string, format: uuid }
+        status: { type: string, const: DELETING }
+        cleanupWorkflowEstablished: { type: boolean, const: true }
+    AssetLibraryResult:
+      type: object
+      additionalProperties: false
+      required: [page, pageSize, hasNextPage, search, mediaType, status, assets]
+      properties:
+        page: { type: integer, minimum: 1, maximum: 100 }
+        pageSize: { type: integer, const: 24 }
+        hasNextPage: { type: boolean }
+        search: { type: string }
+        mediaType:
+          oneOf:
+            - { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+            - { type: "null" }
+        status:
+          oneOf:
+            - { type: string, enum: [PENDING, PROCESSING, READY, FAILED, DELETING] }
+            - { type: "null" }
+        assets:
+          type: array
+          items: { $ref: "#/components/schemas/AssetLibraryItem" }
+    AssetLibraryItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          mediaType,
+          sourceType,
+          status,
+          displayName,
+          sourceHost,
+          byteSize,
+          width,
+          height,
+          durationMs,
+          mediaFormat,
+          failureCode,
+          createdAt,
+          updatedAt,
+          referenceCount,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        mediaType: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+        sourceType: { type: string, enum: [UPLOAD, EXTERNAL_URL] }
+        status: { type: string, enum: [PENDING, PROCESSING, READY, FAILED, DELETING] }
+        displayName: { type: string }
+        sourceHost: { type: [string, "null"] }
+        byteSize: { type: [integer, "null"] }
+        width: { type: [integer, "null"] }
+        height: { type: [integer, "null"] }
+        durationMs: { type: [integer, "null"] }
+        mediaFormat: { type: [string, "null"] }
+        failureCode:
+          oneOf:
+            - {
+                type: string,
+                enum:
+                  [
+                    UPLOAD_EXPIRED,
+                    MEDIA_TOO_LARGE,
+                    MEDIA_LIMIT_EXCEEDED,
+                    MEDIA_TYPE_MISMATCH,
+                    UNSUPPORTED_MEDIA,
+                    INVALID_MEDIA,
+                    UNSAFE_MEDIA_URL,
+                    MEDIA_SOURCE_UNAVAILABLE,
+                    PROCESSING_UNAVAILABLE,
+                  ],
+              }
+            - { type: "null" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        referenceCount: { type: integer, minimum: 0 }
+    SignUpRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+    SignInRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+    SessionResponse:
+      type: object
+      additionalProperties: false
+      required: [user, expiresAt]
+      properties:
+        user:
+          $ref: "#/components/schemas/SessionUser"
+        expiresAt:
+          type: string
+          format: date-time
+    SessionUser:
+      type: object
+      additionalProperties: false
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    SaveContentDnaRequest:
+      type: object
+      additionalProperties: false
+      required: [baseVersionId, payload]
+      properties:
+        baseVersionId:
+          type: [string, "null"]
+          format: uuid
+        payload:
+          $ref: "#/components/schemas/ContentDnaPayload"
+    ContentDnaVersion:
+      type: object
+      additionalProperties: false
+      required: [id, versionNumber, payload, readiness, createdAt, isCurrent]
+      properties:
+        id:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+          minimum: 1
+        payload:
+          $ref: "#/components/schemas/ContentDnaPayload"
+        readiness:
+          type: string
+          enum: [INCOMPLETE, AI_READY]
+        createdAt:
+          type: string
+          format: date-time
+        isCurrent:
+          type: boolean
+    CurrentContentDna:
+      type: object
+      additionalProperties: false
+      required: [status, currentVersion]
+      properties:
+        status:
+          type: string
+          enum: [NOT_CREATED, INCOMPLETE, AI_READY]
+        currentVersion:
+          oneOf:
+            - $ref: "#/components/schemas/ContentDnaVersion"
+            - type: "null"
+    ContentDnaPayload:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion]
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+        identity:
+          $ref: "#/components/schemas/ContentDnaIdentity"
+        audience:
+          $ref: "#/components/schemas/ContentDnaAudience"
+        expertise:
+          $ref: "#/components/schemas/ContentDnaExpertise"
+        voice:
+          $ref: "#/components/schemas/ContentDnaVoice"
+        goals:
+          $ref: "#/components/schemas/ContentDnaGoals"
+        preferences:
+          $ref: "#/components/schemas/ContentDnaPreferences"
+        language:
+          $ref: "#/components/schemas/ContentDnaLanguage"
+    ContentDnaIdentity:
+      type: object
+      additionalProperties: false
+      properties:
+        creatorOrBrandDescription:
+          type: string
+          minLength: 1
+          maxLength: 1500
+    ContentDnaAudience:
+      type: object
+      additionalProperties: false
+      properties:
+        targetAudienceDescription:
+          type: string
+          minLength: 1
+          maxLength: 1500
+    ContentDnaExpertise:
+      type: object
+      additionalProperties: false
+      properties:
+        primaryTopics:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+    ContentDnaVoice:
+      type: object
+      additionalProperties: false
+      properties:
+        toneTraits:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            type: string
+            minLength: 1
+            maxLength: 60
+        preferredStyle:
+          type: string
+          minLength: 1
+          maxLength: 1200
+    ContentDnaGoals:
+      type: object
+      additionalProperties: false
+      properties:
+        contentGoals:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
+    ContentDnaPreferences:
+      type: object
+      additionalProperties: false
+      properties:
+        preferredFormats:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+        topicsToAvoid:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
+        approachesToAvoid:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 160
+        additionalInstructions:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    ContentDnaLanguage:
+      type: object
+      additionalProperties: false
+      properties:
+        defaultContentLanguage:
+          type: string
+          enum: [en, fa]
+        contentLanguages:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            type: string
+            enum: [en, fa]
+    GenerateIdeasRequest:
+      type: object
+      additionalProperties: false
+      required: [baseContentDnaVersionId, requestedLanguage, idempotencyKey]
+      properties:
+        baseContentDnaVersionId:
+          type: string
+          format: uuid
+        requestedLanguage:
+          type: string
+          enum: [en, fa]
+        idempotencyKey:
+          type: string
+          format: uuid
+    GenerateContentRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceIdeaId, baseContentDnaVersionId, requestedLanguage, format, idempotencyKey]
+      properties:
+        sourceIdeaId: { type: string, format: uuid }
+        baseContentDnaVersionId: { type: string, format: uuid }
+        requestedLanguage: { type: string, enum: [en, fa] }
+        format: { type: string, enum: [SHORT_VIDEO, LONG_VIDEO] }
+        instructions: { type: [string, "null"], minLength: 1, maxLength: 1000 }
+        idempotencyKey: { type: string, format: uuid }
+    ContentGenerationLifecycle:
+      type: string
+      enum: [PENDING, RUNNING, COMPLETED, FAILED]
+    ContentGenerationFailureCategory:
+      type: [string, "null"]
+      enum:
+        [TIMEOUT, RATE_LIMITED, PROVIDER_UNAVAILABLE, INVALID_OUTPUT, INTERRUPTED, UNKNOWN, null]
+    ContentGenerationAttempt:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          aiRunId,
+          sourceIdeaId,
+          contentDnaVersionId,
+          requestedLanguage,
+          format,
+          instructions,
+          requestFingerprint,
+          status,
+          errorCategory,
+          rateLimitSource,
+          createdAt,
+          startedAt,
+          completedAt,
+          failedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        aiRunId: { type: string, format: uuid }
+        sourceIdeaId: { type: string, format: uuid }
+        contentDnaVersionId: { type: string, format: uuid }
+        requestedLanguage: { type: string, enum: [en, fa] }
+        format: { type: string, enum: [SHORT_VIDEO, LONG_VIDEO] }
+        instructions: { type: [string, "null"] }
+        requestFingerprint: { type: string, pattern: "^[0-9a-f]{64}$" }
+        status: { $ref: "#/components/schemas/ContentGenerationLifecycle" }
+        errorCategory: { $ref: "#/components/schemas/ContentGenerationFailureCategory" }
+        rateLimitSource:
+          type: [string, "null"]
+          enum: [workspace, provider, null]
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, "null"], format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+        failedAt: { type: [string, "null"], format: date-time }
+    ContentGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [attempt, contentId, replayed]
+      properties:
+        attempt: { $ref: "#/components/schemas/ContentGenerationAttempt" }
+        contentId: { type: [string, "null"], format: uuid }
+        replayed: { type: boolean }
+    SaveContentDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [baseRevision, document]
+      properties:
+        baseRevision: { type: integer, minimum: 1 }
+        document: { $ref: "#/components/schemas/ContentDocument" }
+    AcceptContentRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedDraftRevision]
+      properties:
+        expectedDraftRevision: { type: integer, minimum: 1 }
+    ContentDocument:
+      oneOf:
+        - $ref: "#/components/schemas/ContentDocumentV1"
+        - $ref: "#/components/schemas/ContentDocumentStructured"
+    ContentDocumentV1:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, script]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        script:
+          type: object
+          additionalProperties: false
+          required: [text]
+          properties:
+            text: { type: string, maxLength: 12000 }
+    ContentDocumentStructured:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, script]
+      properties:
+        schemaVersion: { type: integer, enum: [2, 3, 4] }
+        script:
+          type: object
+          additionalProperties: false
+          required: [blocks]
+          properties:
+            blocks:
+              type: array
+              minItems: 1
+              maxItems: 1000
+              items:
+                type: object
+                additionalProperties: false
+                required: [id, type, text, performanceDirections, editDirections]
+                properties:
+                  id: { type: string, format: uuid }
+                  type: { type: string, const: paragraph }
+                  text: { type: string }
+                  performanceDirections:
+                    type: array
+                    items: { $ref: "#/components/schemas/ContentDirection" }
+                  editDirections:
+                    type: array
+                    items: { $ref: "#/components/schemas/ContentDirection" }
+    ContentDirection:
+      type: object
+      required: [id, type]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+      additionalProperties: true
+    ContentDraft:
+      type: object
+      additionalProperties: false
+      required: [revision, document, editorDocument, v2Projection, updatedAt]
+      properties:
+        revision: { type: integer, minimum: 1 }
+        document: { $ref: "#/components/schemas/ContentDocument" }
+        editorDocument: { $ref: "#/components/schemas/ContentDocument" }
+        v2Projection: { $ref: "#/components/schemas/ContentDocument" }
+        updatedAt: { type: string, format: date-time }
+    ContentListItem:
+      type: object
+      additionalProperties: false
+      required: [id, sourceIdeaTitle, format, contentLanguage, lastEditedAt]
+      properties:
+        id: { type: string, format: uuid }
+        sourceIdeaTitle: { type: string }
+        format: { type: string, enum: [SHORT_VIDEO, LONG_VIDEO] }
+        contentLanguage: { type: string, enum: [en, fa] }
+        lastEditedAt: { type: string, format: date-time }
+    ContentVersionSource:
+      type: string
+      enum: [AI_GENERATED, LEGACY_DRAFT_CHECKPOINT, CREATOR_ACCEPTED]
+    ContentVersion:
+      type: object
+      additionalProperties: false
+      required: [id, versionNumber, document, source, createdAt, createdByName, isCurrentAccepted]
+      properties:
+        id: { type: string, format: uuid }
+        versionNumber: { type: integer, minimum: 1 }
+        document: { $ref: "#/components/schemas/ContentDocument" }
+        source: { $ref: "#/components/schemas/ContentVersionSource" }
+        createdAt: { type: string, format: date-time }
+        createdByName: { type: [string, "null"] }
+        isCurrentAccepted: { type: boolean }
+    ContentDetail:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          sourceIdea,
+          contentLanguage,
+          format,
+          draft,
+          acceptedVersionId,
+          versions,
+          assetPresentations,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        sourceIdea:
+          type: object
+          additionalProperties: false
+          required: [id, title]
+          properties:
+            id: { type: string, format: uuid }
+            title: { type: string }
+        contentLanguage: { type: string, enum: [en, fa] }
+        format: { type: string, enum: [SHORT_VIDEO, LONG_VIDEO] }
+        draft: { $ref: "#/components/schemas/ContentDraft" }
+        acceptedVersionId: { type: [string, "null"], format: uuid }
+        versions:
+          type: array
+          items: { $ref: "#/components/schemas/ContentVersion" }
+        assetPresentations:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: false
+            required: [displayName, mediaType]
+            properties:
+              displayName: { type: string }
+              mediaType: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+    ContentAcceptanceResult:
+      type: object
+      additionalProperties: false
+      required: [draft, acceptedVersion]
+      properties:
+        draft: { $ref: "#/components/schemas/ContentDraft" }
+        acceptedVersion: { $ref: "#/components/schemas/ContentVersion" }
+    ContentGenerationAttemptHistory:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          status,
+          errorCategory,
+          rateLimitSource,
+          requestedLanguage,
+          format,
+          instructions,
+          createdAt,
+          startedAt,
+          completedAt,
+          failedAt,
+          resultingContentId,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ContentGenerationLifecycle" }
+        errorCategory: { $ref: "#/components/schemas/ContentGenerationFailureCategory" }
+        rateLimitSource:
+          type: [string, "null"]
+          enum: [workspace, provider, null]
+        requestedLanguage: { type: string, enum: [en, fa] }
+        format: { type: string, enum: [SHORT_VIDEO, LONG_VIDEO] }
+        instructions: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, "null"], format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+        failedAt: { type: [string, "null"], format: date-time }
+        resultingContentId: { type: [string, "null"], format: uuid }
+    ContentGenerationAttemptDetail:
+      type: object
+      additionalProperties: false
+      required: [attempt, sourceIdea]
+      properties:
+        attempt: { $ref: "#/components/schemas/ContentGenerationAttemptHistory" }
+        sourceIdea:
+          type: object
+          additionalProperties: false
+          required: [id, title]
+          properties:
+            id: { type: string, format: uuid }
+            title: { type: string }
+    IdeaContentGenerationHistory:
+      type: object
+      additionalProperties: false
+      required: [sourceIdea, isUsed, attempts]
+      properties:
+        sourceIdea:
+          type: object
+          additionalProperties: false
+          required: [id, title]
+          properties:
+            id: { type: string, format: uuid }
+            title: { type: string }
+        isUsed: { type: boolean }
+        attempts:
+          type: array
+          items: { $ref: "#/components/schemas/ContentGenerationAttemptHistory" }
+    IdeaContentUsage:
+      type: object
+      additionalProperties: false
+      required: [ideaId, isUsed]
+      properties:
+        ideaId: { type: string, format: uuid }
+        isUsed: { type: boolean }
+    ContentByIdea:
+      type: object
+      additionalProperties: false
+      required: [sourceIdea, content, history]
+      properties:
+        sourceIdea:
+          type: object
+          additionalProperties: false
+          required: [id, title, description, language, status]
+          properties:
+            id: { type: string, format: uuid }
+            title: { type: string }
+            description: { type: string }
+            language: { type: string, enum: [en, fa] }
+            status: { type: string, enum: [NEW, SAVED, ACCEPTED, REJECTED] }
+        content:
+          type: array
+          items: { $ref: "#/components/schemas/ContentDetail" }
+        history: { $ref: "#/components/schemas/IdeaContentGenerationHistory" }
+    ContentProductionView:
+      type: object
+      additionalProperties: false
+      required: [status, contentId, contentTitle, contentLanguage, acceptedVersionId]
+      properties:
+        status: { type: string, enum: [READY, NO_ACCEPTED_VERSION, UNAVAILABLE] }
+        contentId: { type: string, format: uuid }
+        contentTitle: { type: string }
+        contentLanguage: { type: string, enum: [en, fa] }
+        acceptedVersionId: { type: [string, "null"], format: uuid }
+        acceptedVersionNumber: { type: integer, minimum: 1 }
+        scriptBlocks:
+          type: array
+          items: { type: object, additionalProperties: true }
+        assetPresentations:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: false
+            required: [displayName, mediaType, width, height, previewable]
+            properties:
+              displayName: { type: string }
+              mediaType: { type: string, enum: [IMAGE, VIDEO, AUDIO] }
+              width: { type: [integer, "null"] }
+              height: { type: [integer, "null"] }
+              previewable: { type: boolean }
+    IdeaLifecycle:
+      type: string
+      enum: [PENDING, RUNNING, COMPLETED, FAILED]
+    IdeaFailureCategory:
+      type: [string, "null"]
+      enum:
+        [TIMEOUT, RATE_LIMITED, PROVIDER_UNAVAILABLE, INVALID_OUTPUT, INTERRUPTED, UNKNOWN, null]
+    IdeaGenerationBatch:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          aiRunId,
+          contentDnaVersionId,
+          requestedLanguage,
+          requestedCount,
+          status,
+          errorCategory,
+          rateLimitSource,
+          createdAt,
+          startedAt,
+          completedAt,
+          failedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        aiRunId: { type: string, format: uuid }
+        contentDnaVersionId: { type: string, format: uuid }
+        requestedLanguage: { type: string, enum: [en, fa] }
+        requestedCount: { type: integer, const: 20 }
+        status: { $ref: "#/components/schemas/IdeaLifecycle" }
+        errorCategory: { $ref: "#/components/schemas/IdeaFailureCategory" }
+        rateLimitSource:
+          type: [string, "null"]
+          enum: [workspace, provider, null]
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, "null"], format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+        failedAt: { type: [string, "null"], format: date-time }
+    IdeaGenerationResult:
+      type: object
+      additionalProperties: false
+      required: [batch, replayed]
+      properties:
+        batch: { $ref: "#/components/schemas/IdeaGenerationBatch" }
+        replayed: { type: boolean }
+    IdeaGenerationHistoryBatch:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          contentDnaVersionId,
+          contentDnaVersionNumber,
+          requestedLanguage,
+          requestedCount,
+          status,
+          errorCategory,
+          rateLimitSource,
+          ideaCount,
+          createdAt,
+          startedAt,
+          completedAt,
+          failedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        contentDnaVersionId: { type: string, format: uuid }
+        contentDnaVersionNumber: { type: integer, minimum: 1 }
+        requestedLanguage: { type: string, enum: [en, fa] }
+        requestedCount: { type: integer, const: 20 }
+        status: { $ref: "#/components/schemas/IdeaLifecycle" }
+        errorCategory: { $ref: "#/components/schemas/IdeaFailureCategory" }
+        rateLimitSource:
+          type: [string, "null"]
+          enum: [workspace, provider, null]
+        ideaCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, "null"], format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+        failedAt: { type: [string, "null"], format: date-time }
+    IdeaGenerationHistoryResult:
+      type: object
+      additionalProperties: false
+      required: [batches, selectedBatchId]
+      properties:
+        batches:
+          type: array
+          items: { $ref: "#/components/schemas/IdeaGenerationHistoryBatch" }
+        selectedBatchId: { type: [string, "null"], format: uuid }
+    Idea:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          batchId,
+          position,
+          title,
+          description,
+          category,
+          language,
+          status,
+          rejectionReason,
+          statusChangedAt,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        position: { type: integer, minimum: 1, maximum: 20 }
+        title: { type: string }
+        description: { type: string }
+        category: { type: [string, "null"] }
+        language: { type: string, enum: [en, fa] }
+        status: { type: string, enum: [NEW, SAVED, ACCEPTED, REJECTED] }
+        rejectionReason: { type: [string, "null"] }
+        statusChangedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    IdeaGenerationBatchDetail:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          contentDnaVersionId,
+          contentDnaVersionNumber,
+          requestedLanguage,
+          requestedCount,
+          status,
+          errorCategory,
+          rateLimitSource,
+          ideaCount,
+          createdAt,
+          startedAt,
+          completedAt,
+          failedAt,
+          ideas,
+          canRetry,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        contentDnaVersionId: { type: string, format: uuid }
+        contentDnaVersionNumber: { type: integer, minimum: 1 }
+        requestedLanguage: { type: string, enum: [en, fa] }
+        requestedCount: { type: integer, const: 20 }
+        status: { $ref: "#/components/schemas/IdeaLifecycle" }
+        errorCategory: { $ref: "#/components/schemas/IdeaFailureCategory" }
+        rateLimitSource:
+          type: [string, "null"]
+          enum: [workspace, provider, null]
+        ideaCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, "null"], format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+        failedAt: { type: [string, "null"], format: date-time }
+        ideas:
+          type: array
+          items: { $ref: "#/components/schemas/Idea" }
+        canRetry: { type: boolean }
+    IdeaLibraryItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          batchId,
+          position,
+          title,
+          description,
+          category,
+          language,
+          status,
+          rejectionReason,
+          statusChangedAt,
+          createdAt,
+          updatedAt,
+          contentCount,
+          batch,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        position: { type: integer, minimum: 1, maximum: 20 }
+        title: { type: string }
+        description: { type: string }
+        category: { type: [string, "null"] }
+        language: { type: string, enum: [en, fa] }
+        status: { type: string, enum: [NEW, SAVED, ACCEPTED, REJECTED] }
+        rejectionReason: { type: [string, "null"] }
+        statusChangedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        contentCount: { type: integer, minimum: 0 }
+        batch:
+          type: object
+          additionalProperties: false
+          required: [id, contentDnaVersionNumber, requestedLanguage, status, createdAt]
+          properties:
+            id: { type: string, format: uuid }
+            contentDnaVersionNumber: { type: integer, minimum: 1 }
+            requestedLanguage: { type: string, enum: [en, fa] }
+            status: { $ref: "#/components/schemas/IdeaLifecycle" }
+            createdAt: { type: string, format: date-time }
+    IdeaLibrary:
+      type: object
+      additionalProperties: false
+      required: [statusFilter, generationBatchId, ideas]
+      properties:
+        statusFilter: { type: string, enum: [ALL, NEW, SAVED, ACCEPTED, REJECTED] }
+        generationBatchId: { type: [string, "null"], format: uuid }
+        ideas:
+          type: array
+          items: { $ref: "#/components/schemas/IdeaLibraryItem" }
+    UpdateIdeaDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [nextState]
+      properties:
+        nextState: { type: string, enum: [NEW, SAVED, ACCEPTED, REJECTED] }
+        rejectionReason: { type: [string, "null"], maxLength: 500 }
+    IdeaDecision:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          batchId,
+          position,
+          title,
+          description,
+          category,
+          language,
+          status,
+          rejectionReason,
+          statusChangedAt,
+          createdAt,
+          updatedAt,
+          isNoop,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        position: { type: integer, minimum: 1, maximum: 20 }
+        title: { type: string }
+        description: { type: string }
+        category: { type: [string, "null"] }
+        language: { type: string, enum: [en, fa] }
+        status: { type: string, enum: [NEW, SAVED, ACCEPTED, REJECTED] }
+        rejectionReason: { type: [string, "null"] }
+        statusChangedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        isNoop: { type: boolean }
+    ReorderProductionQueueRequest:
+      type: object
+      additionalProperties: false
+      required: [orderedIdeaIds]
+      properties:
+        orderedIdeaIds:
+          type: array
+          items: { type: string, format: uuid }
+    ProductionQueueAttempt:
+      type: object
+      additionalProperties: false
+      required: [id, status, errorCategory, createdAt, failedAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [PENDING, RUNNING, COMPLETED, FAILED] }
+        errorCategory: { $ref: "#/components/schemas/IdeaFailureCategory" }
+        createdAt: { type: string, format: date-time }
+        failedAt: { type: [string, "null"], format: date-time }
+    ProductionQueueItem:
+      type: object
+      additionalProperties: false
+      required: [id, title, description, language, productionQueuePosition, lastAttempt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        language: { type: string, enum: [en, fa] }
+        productionQueuePosition: { type: integer, minimum: 1 }
+        lastAttempt:
+          oneOf:
+            - $ref: "#/components/schemas/ProductionQueueAttempt"
+            - type: "null"
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - INVALID_NAME
+            - INVALID_EMAIL_OR_PASSWORD
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - INVALID_ORIGIN
+            - CONFLICT
+            - SERVICE_UNAVAILABLE
+            - RATE_LIMITED
+            - AI_OUTPUT_INVALID
+            - PROVIDER_ERROR
+            - INTERNAL_ERROR
+            - NOT_FOUND
+        fields:
+          type: object
+          additionalProperties:
+            type: string

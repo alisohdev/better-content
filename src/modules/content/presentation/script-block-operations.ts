@@ -1,0 +1,146 @@
+import {
+  contentDocumentV2Schema,
+  contentDocumentV3Schema,
+  contentDocumentV4Schema,
+  type ContentDocumentV2,
+  type ContentDocumentV3,
+  type ContentDocumentV4,
+} from "../domain";
+
+type EditorDocument = ContentDocumentV2 | ContentDocumentV3 | ContentDocumentV4;
+type Block = EditorDocument["script"]["blocks"][number];
+const freshBlock = (text = ""): Block => ({
+  id: crypto.randomUUID(),
+  type: "paragraph",
+  text,
+  performanceDirections: [],
+  editDirections: [],
+});
+// Local editing retains a blank active paragraph; the save service is the canonical persistence boundary.
+const update = <T extends EditorDocument>(document: T, blocks: readonly Block[]): T | null => {
+  try {
+    const schema =
+      document.schemaVersion === 4
+        ? contentDocumentV4Schema
+        : document.schemaVersion === 3
+          ? contentDocumentV3Schema
+          : contentDocumentV2Schema;
+    return schema.parse({
+      ...document,
+      script: { blocks: blocks.length ? blocks : [freshBlock()] },
+    }) as T;
+  } catch {
+    return null;
+  }
+};
+
+export function replaceBlockText<T extends EditorDocument>(
+  document: T,
+  id: string,
+  text: string,
+): T | null {
+  return update(
+    document,
+    document.script.blocks.map((block) =>
+      block.id === id ? { ...block, text: text.replace(/[\r\n]/g, "") } : block,
+    ),
+  );
+}
+export function splitBlock<T extends EditorDocument>(
+  document: T,
+  id: string,
+  start: number,
+  end: number,
+): T | null {
+  const index = document.script.blocks.findIndex((block) => block.id === id);
+  if (index < 0 || document.script.blocks.length >= 1000) return null;
+  const block = document.script.blocks[index];
+  const leading = { ...block, text: block.text.slice(0, start) };
+  const trailing = freshBlock(block.text.slice(end));
+  return update(document, [
+    ...document.script.blocks.slice(0, index),
+    leading,
+    trailing,
+    ...document.script.blocks.slice(index + 1),
+  ]);
+}
+export function mergeBlock<T extends EditorDocument>(document: T, id: string): T | null {
+  const index = document.script.blocks.findIndex((block) => block.id === id);
+  if (index <= 0) return null;
+  const previous = document.script.blocks[index - 1];
+  const current = document.script.blocks[index];
+  const merged: Block = {
+    ...previous,
+    text: previous.text + current.text,
+    performanceDirections: [...previous.performanceDirections, ...current.performanceDirections],
+    editDirections: [...previous.editDirections, ...current.editDirections],
+  };
+  return update(document, [
+    ...document.script.blocks.slice(0, index - 1),
+    merged,
+    ...document.script.blocks.slice(index + 1),
+  ]);
+}
+export function addBlock<T extends EditorDocument>(document: T): T | null {
+  return document.script.blocks.length >= 1000
+    ? null
+    : update(document, [...document.script.blocks, freshBlock()]);
+}
+export function moveBlock<T extends EditorDocument>(
+  document: T,
+  id: string,
+  delta: -1 | 1,
+): T | null {
+  const index = document.script.blocks.findIndex((block) => block.id === id);
+  const target = index + delta;
+  if (index < 0 || target < 0 || target >= document.script.blocks.length) return null;
+  const blocks = [...document.script.blocks];
+  [blocks[index], blocks[target]] = [blocks[target], blocks[index]];
+  return update(document, blocks);
+}
+export function deleteBlock<T extends EditorDocument>(document: T, id: string): T | null {
+  const index = document.script.blocks.findIndex((block) => block.id === id);
+  if (index < 0) return null;
+  return update(
+    document,
+    document.script.blocks.filter((block) => block.id !== id),
+  );
+}
+
+/** Multiline paste is structural: only retained lines create new blocks. */
+export function pasteIntoBlock<T extends EditorDocument>(
+  document: T,
+  id: string,
+  start: number,
+  end: number,
+  pasted: string,
+): T | null {
+  const index = document.script.blocks.findIndex((block) => block.id === id);
+  if (index < 0) return null;
+  const lines = pasted.replace(/\r\n?/g, "\n").split("\n");
+  if (lines.length < 2)
+    return replaceBlockText(
+      document,
+      id,
+      document.script.blocks[index].text.slice(0, start) +
+        pasted +
+        document.script.blocks[index].text.slice(end),
+    );
+  const retained = lines.filter((line) => !/^\s*$/u.test(line));
+  const block = document.script.blocks[index];
+  const prefix = block.text.slice(0, start);
+  const suffix = block.text.slice(end);
+  if (!retained.length) return replaceBlockText(document, id, prefix + suffix);
+  if (document.script.blocks.length + retained.length - 1 > 1000) return null;
+  const first = { ...block, text: prefix + retained[0] };
+  const following = retained.slice(1).map((line) => freshBlock(line));
+  const last = following.at(-1);
+  if (last) last.text += suffix;
+  else first.text += suffix;
+  return update(document, [
+    ...document.script.blocks.slice(0, index),
+    first,
+    ...following,
+    ...document.script.blocks.slice(index + 1),
+  ]);
+}
