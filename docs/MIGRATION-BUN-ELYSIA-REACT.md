@@ -22,7 +22,7 @@ An earlier review described a Next.js app with server actions and no product RES
 | English and Persian, RTL | True. `next-intl`, catalogs `messages/en.json` and `messages/fa.json`, locale prefix always on, `lang`/`dir` from the locale. UI locale does not rewrite creator content. |
 | AI via the OpenAI SDK against AvalAI, behind a provider port, with fakes | True. Idea calls time out at 60s. Content-script calls time out at 90s. `maxRetries` is 0. Automated tests use the fakes. |
 | AI generation blocks the request | True. `generateIdeas` marks the run `RUNNING` and then `await`s the provider inside the server-action request. Content generation does the same. The Go `ideas.Service.Generate` also calls the provider inline. |
-| S3, sharp, ffprobe, Postgres job worker | True. `scripts/run-asset-jobs.ts` claims `asset_jobs`. Handlers: `PROCESS_UPLOAD`, `INGEST_EXTERNAL_URL`, `EXPIRE_UPLOAD`, `DELETE_ASSET`. sharp `0.35.4`. ffprobe is an external binary gated by `FFPROBE_PATH` and `FFPROBE_EXPECTED_VERSION`. |
+| S3, sharp, ffprobe, Postgres job worker | True. `scripts/run-asset-jobs.ts` claims `asset_jobs`. Handlers: `PROCESS_UPLOAD`, `INGEST_EXTERNAL_URL`, `EXPIRE_UPLOAD`, `DELETE_ASSET`. sharp `0.35.5`. ffprobe is an external binary gated by `FFPROBE_PATH` and `FFPROBE_EXPECTED_VERSION`. |
 | SSRF-protected URL import | True, and it must be preserved. `normalizeExternalMediaUrl` allows HTTPS only, strips fragments, rejects credentials and non-443 ports. `isProhibitedRemoteAddress` rejects loopback, link-local, private, CGNAT, multicast, and several reserved IPv4/IPv6 ranges. `controlled-remote-acquisition.ts` resolves DNS, screens every answer, connects to the approved address with hostname TLS verification, revalidates redirects (max 3), and streams with byte and time limits. The request path that creates an external-URL Asset does not fetch the URL. |
 | Zod contracts | True. Zod 4 (`^4.4.3`) validates domain input, env, and forms (React Hook Form). |
 | Vitest and Playwright | True. Unit plus Postgres integration via Vitest. Playwright specs: authentication, content DNA, ideas, content, content generation, assets. E2E selects the AI fake with `BETTER_CONTENT_E2E=1` and a scenario cookie. |
@@ -48,18 +48,18 @@ Composition roots that still import Next (`cookies()` from `next/headers`) are `
 ## 2. Target repository
 
 ```text
-apps/api          HTTP API. Runtime and adapter selected by B-SPIKE. Routes, auth mount, error mapping.
+apps/api          Hono API. Bun preferred; Node fallback validated by B-SPIKE. Routes, auth mount, error mapping.
 apps/worker       Selected runtime. Asset jobs; later AI jobs. No HTTP product API.
 apps/web          Vite SPA. React 19, TanStack Router, TanStack Query.
 packages/contracts  openapi.yaml, generated TS types, AUTH.md (Better Auth surface).
 packages/db       Drizzle schema, SQL migrations, pool factory. No product rules.
-packages/domain   Domain, application, and provider adapters. No React, no Elysia.
+packages/domain   Domain, application, and provider adapters. No React, no HTTP framework.
 messages/         en.json and fa.json, consumed by apps/web.
 ```
 
 The legacy Next app stays at the repository root, and `backend/` stays, until B-RETIRE. That ticket is a separate pull request after cutover. Moving `src/` in the first PR would break the app that still ships.
 
-`apps/web` depends on `packages/contracts` only. It does not import `packages/domain` or `packages/db`. That boundary is enforced, not just described: package `exports` do not point at server entry points, ESLint `no-restricted-imports` fails a web file that imports `pg`, `drizzle-orm`, `better-auth` server helpers, the OpenAI SDK, or `@/modules`, and the production web bundle is scanned for those package names. A written rule to agents is not the control. `apps/api` and `apps/worker` depend on `packages/domain` and `packages/db`. `packages/domain` depends on `packages/db` and must not import Elysia, React, `next`, or `server-only`.
+`apps/web` depends on `packages/contracts` only. It does not import `packages/domain` or `packages/db`. That boundary is enforced, not just described: package `exports` do not point at server entry points, ESLint `no-restricted-imports` fails a web file that imports `pg`, `drizzle-orm`, `better-auth` server helpers, the OpenAI SDK, or `@/modules`, and the production web bundle is scanned for those package names. A written rule to agents is not the control. `apps/api` and `apps/worker` depend on `packages/domain` and `packages/db`. `packages/domain` depends on `packages/db` and must not import Hono, Elysia, React, `next`, or `server-only`.
 
 One domain package, not a package per module. The modules keep their current folders inside `packages/domain/src/modules/{workspace,dna,ideas,content,assets,ai}`. Cross-module calls stay in-process. This preserves ADR-001's modular monolith and ADR-009's single database. A workspace package per domain would invent network boundaries the product does not need.
 
@@ -90,23 +90,23 @@ Rough size of the reuse: the product rules already exist in TypeScript and are c
 
 ## 3. HTTP API
 
-B-SPIKE evaluates Node and Bun before the owner chooses a runtime/adapter pair. Test Elysia on both; try Hono on each runtime where Elysia fails its adapter checks, before choosing. Section 8 defines the selection rule. The routes, auth rules and error mapping do not depend on the adapter.
+The owner has selected Hono as the HTTP framework and Bun as the preferred runtime, subject to B-SPIKE. Test the same Hono application on Bun and Node; Node + Hono is the fallback if Bun fails a critical compatibility, security or operational gate. If neither passes, stop. Do not evaluate Elysia or introduce a second HTTP framework. The final runtime is confirmed in the accepted ADR after the spike.
 
 ### Shape
 
 - Product API base path: `/api/v1`, matching the current OpenAPI `servers` entry.
-- Better Auth base path: `/api/auth`, mounted on the adapter. On Elysia that is `mount(auth.handler)`. The SPA uses the official Better Auth React client for sign-up, sign-in, sign-out, and session. Verification and password reset are added with B-EMAIL, not in the parity client.
+- Better Auth base path: `/api/auth`, mounted on the adapter. Register the Better Auth handler on Hono at `/api/auth/*` and forward `c.req.raw` to `auth.handler`, with allowed methods and origin checks verified in the spike. Preserve the handler's Response and Set-Cookie headers; do not reconstruct them. The SPA uses the official Better Auth React client for sign-up, sign-in, sign-out, and session. Verification and password reset are added with B-EMAIL, not in the parity client.
 - The product OpenAPI auth operations (`signUp`, `signIn`, `signOut`, `getSession`) were the Go replacement for Better Auth. They are removed from the product contract so the two agents do not build a second auth API. Session cookies on every other operation stay.
 - Health: `GET /health/live` and `GET /health/ready` (ready checks the pool). These stay off the product contract or in a tiny ops section; they are not browser features.
 - Handlers are thin: read the session, parse the body with the domain Zod schema, call the application service, map `ApplicationError`.
 
 ### Validation
 
-Use Zod 4 schemas at the route boundary. Elysia accepts Standard Schema, and Zod 4 implements it, so route `body` / `query` / `params` can be the same schemas the domain already exports.
+Use existing Zod 4 schemas at Hono's route boundary, through a thin validation middleware or a compatible pinned Zod validator. Validate body, query and path parameters and map failures to the existing error envelope. Do not duplicate domain schemas.
 
-TypeBox (`Elysia.t`) is the library Elysia generates OpenAPI from most directly. This plan still rejects it. The domain, the forms, and the env parser are already Zod. A second schema language would fork every contract. Custom refinements (SSRF, document structure, revision checks) stay in domain functions; JSON Schema cannot express them, whichever builder emits the schema.
+Do not introduce TypeBox or a second schema language. The domain, the forms, and the env parser are already Zod. A second schema language would fork every contract. Custom refinements (SSRF, document structure, revision checks) stay in domain functions; JSON Schema cannot express them, whichever builder emits the schema.
 
-`@elysia/openapi` may serve a Scalar page in development. The committed `openapi.yaml` remains the contract. A generated spec that disagrees with the file fails CI. Do not switch the source of truth to "whatever Elysia emits."
+A development-only API docs page may serve the committed `openapi.yaml`. The YAML remains the single product contract; do not make Hono route annotations or generated OpenAPI a competing source of truth. Runtime request/response contract tests and generated-client consistency are required.
 
 ### Auth
 
@@ -147,8 +147,8 @@ One public origin in production and in local development.
 
 | Concern | Choice |
 | --- | --- |
-| Production topology | Reverse proxy. `/` is the SPA. `/api/auth` and `/api/v1` are Elysia. |
-| Local development | Vite proxies `/api` to Elysia. The browser's origin is the Vite origin. `trustedOrigins` includes that origin. |
+| Production topology | Reverse proxy. `/` is the SPA. `/api/auth` and `/api/v1` are Hono. |
+| Local development | Vite proxies `/api` to Hono. The browser's origin is the Vite origin. `trustedOrigins` includes that origin. |
 | Cookie | Better Auth's `HttpOnly` session cookie. `SameSite=Lax`. `Secure` when the origin is HTTPS. `Path=/`. Name stays `better-auth.session_token`. |
 | CSRF | `SameSite=Lax` plus Better Auth's origin check, plus an `Origin` check on every state-changing `/api/v1` route. A missing `Origin` on a mutation is a 403 `INVALID_ORIGIN`. |
 | CORS | Not used for the single-origin deployment. Do not add `Access-Control-Allow-Origin: *`. A split origin later requires a credentialed CORS allow-list and a review of cookie scope; cross-site deployment may require `SameSite=None; Secure`. |
@@ -199,7 +199,7 @@ Body:
 
 - Source file: `packages/contracts/openapi.yaml`.
 - `openapi-typescript` writes `packages/contracts/src/generated.ts`. CI fails on a dirty diff (`api:types:check` already does this).
-- Backend contract tests send HTTP requests to the selected runtime's actual server for each `operationId` (optional adapter-level tests use Elysia `app.handle(request)` or Hono `app.fetch(request)`). The shared harness exposes a standard Request/Response interface and uses the same cases for either adapter. They validate the live JSON against that operation's OpenAPI schema: status, required fields, enums, and the error envelope.
+- Backend contract tests send HTTP requests to the selected runtime's actual server for each `operationId` (optional in-process tests use Hono `app.fetch(request)`). The shared harness exposes a standard Request/Response interface and uses the same cases on either runtime. They validate the live JSON against that operation's OpenAPI schema: status, required fields, enums, and the error envelope.
 - Recommended Go CI policy: drop the Go test and `backend:generate` jobs when ADR-021 is accepted, so the parity contract is not blocked by a tree scheduled for deletion. Until that acceptance, those jobs stay, and this planning pull request does not change the YAML. If the owner keeps Go CI, contract commits must keep `backend:generate` compiling. Go stubs may return 501 for new routes. They must not become a second live writer. The source stays until B-RETIRE either way.
 
 ### Route inventory
@@ -289,7 +289,7 @@ Frontend agents code against the parity contract first. They do not build pollin
 
 **Recommendation: OpenAPI-first client, not Eden Treaty.**
 
-Eden Treaty gives end-to-end types by importing the Elysia app. That couples `apps/web` to `apps/api`. The frontend agent cannot compile until the backend routes exist, and a contract review is a TypeScript diff across both apps. The repository already chose a single OpenAPI 3.1 file and checks generated types into git. This plan keeps that choice and changes the server that implements the file.
+Framework-coupled RPC clients (including Hono RPC) give end-to-end types by importing the server app type. That couples `apps/web` to `apps/api`. The frontend agent cannot compile until the backend routes exist, and a contract review is a TypeScript diff across both apps. The repository already chose a single OpenAPI 3.1 file and checks generated types into git. This plan keeps that choice and changes the server that implements the file.
 
 Workflow:
 
@@ -459,7 +459,7 @@ The worker claims only an eligible unmarked job, then commits the fenced dispatc
 
 ### sharp, ffprobe, S3, SSRF
 
-The spike runs these checks before ADR-021 can be accepted. B-09 repeats the image and SSRF checks on the selected runtime. Only eligible runtime/adapter pairs may be selected under section 8; neither runtime is presumed to pass.
+The spike runs these checks before ADR-021 can be accepted. B-09 repeats the image and SSRF checks on the selected runtime. Only a runtime passing the Hono compatibility gates in section 8 may be selected; neither runtime is presumed to pass.
 
 | Piece | Rule |
 | --- | --- |
@@ -544,7 +544,7 @@ The review changed the sequence. Functional parity on the new processes comes be
 | Phase | What it proves | Users |
 | --- | --- | --- |
 | 0. Baseline | B-PRE-01. The 16 Content integration failures are aligned to canonical V4 and the entire current CI pipeline is green. The auth schema generator is pinned. The dependency audit is written down. | Current app only |
-| 1. Spike | B-SPIKE. Evaluate Node and Bun and their adapter pairs under section 8. Only eligible pairs qualify; prefer Node if both runtimes qualify unless Bun shows a measured material benefit. Stop if neither qualifies. The owner selects the eligible pair; ADR-021 remains Proposed pending explicit acceptance after full green CI and the report. | Nobody |
+| 1. Spike | B-SPIKE. Validate Bun + Hono and Node + Hono under section 8. Prefer Bun when it passes all agreed gates; use Node + Hono if Bun fails and Node passes. Stop if neither qualifies. ADR-021 remains Proposed pending explicit acceptance after full green CI and the report. | Nobody |
 | 2. Acceptance | The owner accepts or amends ADR-021. Go feature work freezes. Go CI is dropped if the owner agrees, so later contract edits are not blocked by a tree scheduled for deletion. The Go source stays until phase 9. | Nobody |
 | 3. Extract | B-00 through B-02. Packages exist. Next.js still serves production through them. Behavior is unchanged. | Current app |
 | 4. Vertical slice | Sign-in, initialize/current workspace, and one DNA save and reload through the real API and the SPA, on a preview database. | Preview |
@@ -558,7 +558,7 @@ Preview uses its own database. The first production cutover is synchronous parit
 
 ### Spike checklist
 
-B-SPIKE is a small harness, not the production apps. Run runtime-level checks on Node and Bun, then the adapter checks below. A runtime failing a critical runtime-level check is ineligible regardless of adapter. Determine eligible runtime/adapter pairs before selecting one.
+B-SPIKE is a small harness, not the production apps. Run the same runtime and Hono HTTP checks on Bun and Node. A runtime failing a critical check is ineligible. Use one Hono route implementation with thin runtime entry points.
 
 | Check | Pass means |
 | --- | --- |
@@ -571,9 +571,9 @@ B-SPIKE is a small harness, not the production apps. Run runtime-level checks on
 | AvalAI SDK | The client constructs, aborts on the existing timeout, and does not retry. A live call is optional and not part of CI. |
 | Vitest | The domain unit tests and one Postgres integration test run on the candidate runtime. |
 
-Use the production OS, architecture, container base and pinned versions. Record the service invocation and `process.versions` for each runtime. A Node-based test driver can exercise a separately launched Bun service but cannot prove in-process Bun compatibility. Pin ffprobe before media certification and run the real audio/video fixture corpus. Measure startup, idle/peak media RSS, API p50/p95 and errors under equal load, image size, test duration and debugging/maintenance friction. Record hardware, configuration, sample count and raw results. Correctness and security are hard gates. If only one runtime has an eligible pair, recommend that pair. If both do, prefer Node unless measured results show a material Bun benefit that justifies its additional operational risk. If neither has an eligible pair, stop; the owner explicitly approves the recommendation and adapter before accepting ADR-021.
+Use the production OS, architecture, container base and pinned versions. Record the service invocation and `process.versions` for each runtime. A Node-based test driver can exercise a separately launched Bun service but cannot prove in-process Bun compatibility. Pin ffprobe before media certification and run the real audio/video fixture corpus. Measure startup, idle/peak media RSS, API p50/p95 and errors under equal load, image size, test duration and debugging/maintenance friction. Record hardware, configuration, sample count and raw results. Correctness, security and agreed operational limits are hard gates. Record the limits before running the comparisons. Bun is the owner's preferred runtime: recommend Bun + Hono when it passes all gates, otherwise recommend Node + Hono if it passes. Measurements expose tradeoffs and unacceptable regressions, not a requirement for Bun to outperform Node. If neither passes, stop. The owner explicitly confirms the runtime before accepting ADR-021.
 
-Test Elysia on both runtime candidates that pass runtime-level checks. If Elysia fails adapter checks on either, test Hono on that runtime before selection, even if Elysia failed on both. The same two routes, auth integration, error mapping and request/response contract tests run against each pair over real HTTP. Record skipped ineligible pairs and failures. Prefer Elysia within an eligible runtime if it passes; otherwise use the passing Hono pair. `packages/domain` imports neither.
+Test the same Hono app on Bun using its Fetch handler and on Node using the official `@hono/node-server` adapter. The same two product routes, Better Auth integration, cookie forwarding, origin rejection, error mapping and request/response contract tests run over real HTTP on both. Pin dependencies, including Hono and any validator, and audit them. Record failures and explicitly ineligible runtimes. Do not benchmark or install Elysia. `packages/domain` imports neither Hono nor runtime-specific HTTP adapters.
 
 ### Cutover and rollback
 
@@ -615,7 +615,7 @@ Before any later async release, repeat the write barrier, rehearsal and reviewed
 | Two unfinished backends | Phase 7 is far along and unused by the UI. | Freeze Go features at acceptance. Delete the tree only after stabilization. |
 | Sixteen red integration tests | Refactoring has no safety net while they fail. | B-PRE-01 aligns them to canonical V4 before ADR-021 acceptance or extraction. This proposal does not establish a green baseline. It does not add a V3 write path to satisfy the old assertions. |
 | Too many changes at once | A production incident would be unattributable. | Parity, async AI, email, compiler, and deletion are separate phases. |
-| Runtime or adapter fails a critical check | sharp, ffprobe, DNS pinning or adapter integration may fail. | Section 8 selects only eligible pairs; prefer Node if both runtimes pass unless Bun shows a material benefit. |
+| Bun fails a critical check | sharp, ffprobe, DNS pinning or HTTP integration may fail. | Validate Node + Hono as the fallback under section 8. If neither passes, stop. |
 | Unknown AvalAI outcome | A crash after the provider accepts the call can bill twice if retried blindly. | No automatic second call. The user retries explicitly. |
 | False email verification | Setting `email_verified` does not prove the mailbox. | No backfill. Existing users keep signing in. Mandatory verification waits on tested mail. |
 | GET that inserts | It skips the origin check and surprises caches. | POST initialize, GET read. |
@@ -626,7 +626,7 @@ Before any later async release, repeat the write barrier, rehearsal and reviewed
 
 ### Open decisions for the owner
 
-1. **Accept ADR-021 only after phase 0 and phase 1.** Phase 7 stays in force until you do. Select the eligible runtime/adapter pair using the section 8 rule; prefer Node if both runtimes pass unless Bun has a measured material benefit.
+1. **Accept ADR-021 only after phase 0 and phase 1.** Phase 7 stays in force until you do. Hono is selected by the owner. Confirm Bun if all section 8 gates pass, otherwise Node + Hono if it passes.
 2. **Email.** Recommended: do not mark existing addresses verified. Keep current sign-in working. Require verification for new accounts only after mail delivery is tested. Password reset ships in that same later change.
 3. **Mail vendor.** Pick it for deliverability in your users' region. The code calls one function either way.
 4. **ffprobe.** Name the version and the install source. Approve the version and install checksum before B-SPIKE can pass.
@@ -650,8 +650,8 @@ Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull 
 
 - **Size:** M
 - **Depends on:** B-PRE-01
-- **Scope:** A throwaway harness that runs the checklist in section 8 on Bun and on Node, with Elysia on each eligible runtime and Hono on each runtime where Elysia fails adapter checks, before selecting a pair. Write the pass/fail report into the ticket. Do not merge the harness into the production apps.
-- **Acceptance:** Every checklist row has a Bun result and a Node result, candidate-runtime execution evidence, pinned ffprobe fixture results and comparative measurements from section 8. The adapter matrix records every tested or explicitly ineligible pair. The report recommends one runtime and HTTP adapter with reasons. ADR-021 is still Proposed.
+- **Scope:** A small throwaway harness that runs the checklist in section 8 using the same Hono app on Bun and on Node. Prefer Bun if all gates pass; Node + Hono is the fallback. No Elysia evaluation. Write the pass/fail report into the ticket. Do not merge the harness into the production apps.
+- **Acceptance:** Every checklist row has a Bun result and a Node result, candidate-runtime execution evidence, pinned ffprobe fixture results and comparative measurements from section 8. The matrix records Bun + Hono and Node + Hono results or explicitly ineligible runtimes. The report recommends a runtime under the owner-approved selection rule. ADR-021 is still Proposed.
 
 ### B-00 — Workspace skeleton and parity contract
 
@@ -877,7 +877,7 @@ Frontend tickets start after B-00. The compiler stays off. MSW handlers remain f
 ## 11. Definition of done for the migration
 
 - B-PRE-01 is green against canonical V4. No V1–V3 rescue path was added.
-- The spike report exists, and the accepted ADR names the runtime and the HTTP adapter it selected.
+- The spike report exists, and the accepted ADR confirms the runtime and Hono.
 - ADR-021 is Accepted only after that, and the superseded status lines are updated in that change.
 - The scrypt fixture still verifies. The pre-launch cutover recreates the named disposable database and does not require old sessions to survive. A later cutover that keeps real accounts keeps `BETTER_AUTH_SECRET`.
 - `email_verified` is not backfilled. Verification and reset, if shipped, follow B-EMAIL.
