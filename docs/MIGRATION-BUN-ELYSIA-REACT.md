@@ -24,12 +24,12 @@ An earlier review described a Next.js app with server actions and no product RES
 | AI generation blocks the request | True. `generateIdeas` marks the run `RUNNING` and then `await`s the provider inside the server-action request. Content generation does the same. The Go `ideas.Service.Generate` also calls the provider inline. |
 | S3, sharp, ffprobe, Postgres job worker | True. `scripts/run-asset-jobs.ts` claims `asset_jobs`. Handlers: `PROCESS_UPLOAD`, `INGEST_EXTERNAL_URL`, `EXPIRE_UPLOAD`, `DELETE_ASSET`. sharp `0.35.5`. ffprobe is an external binary gated by `FFPROBE_PATH` and `FFPROBE_EXPECTED_VERSION`. |
 | SSRF-protected URL import | True, and it must be preserved. `normalizeExternalMediaUrl` allows HTTPS only, strips fragments, rejects credentials and non-443 ports. `isProhibitedRemoteAddress` rejects loopback, link-local, private, CGNAT, multicast, and several reserved IPv4/IPv6 ranges. `controlled-remote-acquisition.ts` resolves DNS, screens every answer, connects to the approved address with hostname TLS verification, revalidates redirects (max 3), and streams with byte and time limits. The request path that creates an external-URL Asset does not fetch the URL. |
-| Zod contracts | True. Zod 4 (`^4.4.3`) validates domain input, env, and forms (React Hook Form). |
+| Zod contracts | True. Zod 4 (`4.6.6`) validates domain input, env, and forms (React Hook Form). |
 | Vitest and Playwright | True. Unit plus Postgres integration via Vitest. Playwright specs: authentication, content DNA, ideas, content, content generation, assets. E2E selects the AI fake with `BETTER_CONTENT_E2E=1` and a scenario cookie. |
 | No deploy config | True. `compose.yaml` runs Postgres 18 only, host port `5433` by default. There is no Dockerfile and no production manifest. |
-| CI fails Prettier on `tsconfig.json` | The CI run on the first commit of this plan failed `prettier --check` on `tsconfig.json` only. The new docs were clean. This pull request formats that file. B-00 still has to keep `format:check` green after the workspace move. |
-| Content draft integration tests | Once Prettier passed, `npm run test` reached the Postgres suite and failed 16 tests in `content-read-service.integration.test.ts` and `content-acceptance-service.integration.test.ts`. Saves of a plain draft throw `A structured Content Draft requires a structured document`, and several assertions still expect `schemaVersion` 3 while the service returns 4. `main` never ran this step, because Prettier failed first. Unit tests in the same job passed. This planning change does not touch those tests. B-PRE-01 aligns them to canonical V4. It does not add a V3 compatibility path to preserve disposable rows. |
-| Vulnerable `next`, `better-auth`, `zod`, `sharp` | Versions are recorded as above. This planning pass did not run `npm audit` and does not name CVEs. B-PRE-01 runs the audit. Only security fixes that pass the existing auth fixtures are applied before parity. Other upgrades wait. |
+| CI baseline | The initial formatting and integration failures were resolved in [B-PRE-01 (PR #2)](https://github.com/alisohdev/better-content/pull/2), merged as `23b351d`. The full [workflow](https://github.com/alisohdev/better-content/actions/runs/45639583424) passed on `df679f9`. B-00 must maintain the green baseline. |
+| Content draft integration tests | B-PRE-01 resolved the 16 original failures, corrected equal V4 saves in TypeScript and Go, and documented the pre-launch exception in ADR-003/004. Canonical V4 is the baseline. No historical-data rescue is required. |
+| Dependency security | B-PRE-01 audited dependencies and applied scoped upgrades: Next 16.4.5, Better Auth 1.7.7, Zod 4.6.6, sharp 0.35.5. Remaining advisory dispositions are recorded in PR #2's baseline ticket; the spike audits its new dependencies. |
 
 ### What Phase 7 already built
 
@@ -137,7 +137,7 @@ The following account policy applies only when that later feature is enabled; th
 
 For B-EMAIL, persist an explicit server-controlled grandfathering policy, such as a reviewed account-creation cutoff and an access-exemption marker. Do not enable a global `requireEmailVerification` switch unless the pinned library proves the per-account exception works. Enforce the policy at every session-issuance path and on protected API access. New unverified accounts must not receive usable product sessions, including through password reset or alternate flows. Re-evaluate verification on email change. Test existing unverified, new unverified, verified, reset, resend, expiry, and email-change cases. Use a local test mailbox; never log tokens.
 
-The mail sender is `sendTransactionalEmail({ to, subject, text })`. Local development logs that a message was requested and does not log the token or the URL. The vendor is an owner decision, chosen for deliverability to the users' region. The domain does not import a vendor SDK. `package.json`'s `auth:generate-schema` script currently runs `npx --yes auth@latest`. The baseline ticket pins that tool to a reviewed version. This planning pull request does not edit that script.
+The mail sender is `sendTransactionalEmail({ to, subject, text })`. Local development logs that a message was requested and does not log the token or the URL. The vendor is an owner decision, chosen for deliverability to the users' region. The domain does not import a vendor SDK. B-PRE-01 pinned `auth:generate-schema` to `auth@1.7.7` and verified identical generated schema. Keep it pinned and aligned with the runtime dependency.
 
 Workspace creation stays out of Better Auth, and it is not a side effect of a GET. `POST /api/v1/workspaces/initialize` runs today's `getOrCreateDefaultWorkspace` (advisory lock, one personal workspace, owner membership) and is origin-checked. `GET /api/v1/workspaces/current` only reads. A missing workspace is 404, which the client repairs by calling initialize. New sign-ups call initialize once from the server after the account exists, so the common path does not depend on the client remembering. The session payload stays identity-only, matching ADR-002.
 
@@ -287,7 +287,7 @@ Frontend agents code against the parity contract first. They do not build pollin
 
 ## 4. How the two agents share the contract
 
-**Recommendation: OpenAPI-first client, not Eden Treaty.**
+**Decision: OpenAPI-first client, not Hono RPC.**
 
 Framework-coupled RPC clients (including Hono RPC) give end-to-end types by importing the server app type. That couples `apps/web` to `apps/api`. The frontend agent cannot compile until the backend routes exist, and a contract review is a TypeScript diff across both apps. The repository already chose a single OpenAPI 3.1 file and checks generated types into git. This plan keeps that choice and changes the server that implements the file.
 
@@ -543,7 +543,7 @@ The review changed the sequence. Functional parity on the new processes comes be
 
 | Phase | What it proves | Users |
 | --- | --- | --- |
-| 0. Baseline | B-PRE-01. The 16 Content integration failures are aligned to canonical V4 and the entire current CI pipeline is green. The auth schema generator is pinned. The dependency audit is written down. | Current app only |
+| 0. Baseline (complete) | B-PRE-01 merged in PR #2 (`23b351d`); full CI passed on `df679f9`. Canonical V4, pinned auth CLI, documented dependency audit. | Current app only |
 | 1. Spike | B-SPIKE. Validate Bun + Hono and Node + Hono under section 8. Prefer Bun when it passes all agreed gates; use Node + Hono if Bun fails and Node passes. Stop if neither qualifies. ADR-021 remains Proposed pending explicit acceptance after full green CI and the report. | Nobody |
 | 2. Acceptance | The owner accepts or amends ADR-021. Go feature work freezes. Go CI is dropped if the owner agrees, so later contract edits are not blocked by a tree scheduled for deletion. The Go source stays until phase 9. | Nobody |
 | 3. Extract | B-00 through B-02. Packages exist. Next.js still serves production through them. Behavior is unchanged. | Current app |
@@ -613,7 +613,7 @@ Before any later async release, repeat the write barrier, rehearsal and reviewed
 | --- | --- | --- |
 | ADR-020 is still Accepted | Agents will keep building Go until the status lines change. | Acceptance is a separate owner act, after the spike. |
 | Two unfinished backends | Phase 7 is far along and unused by the UI. | Freeze Go features at acceptance. Delete the tree only after stabilization. |
-| Sixteen red integration tests | Refactoring has no safety net while they fail. | B-PRE-01 aligns them to canonical V4 before ADR-021 acceptance or extraction. This proposal does not establish a green baseline. It does not add a V3 write path to satisfy the old assertions. |
+| Baseline regression | Future changes may reintroduce failures. | B-PRE-01 is merged and full CI passed. Require green CI on subsequent implementation commits; do not restore historical compatibility as a pre-launch gate. |
 | Too many changes at once | A production incident would be unattributable. | Parity, async AI, email, compiler, and deletion are separate phases. |
 | Bun fails a critical check | sharp, ffprobe, DNS pinning or HTTP integration may fail. | Validate Node + Hono as the fallback under section 8. If neither passes, stop. |
 | Unknown AvalAI outcome | A crash after the provider accepts the call can bill twice if retried blindly. | No automatic second call. The user retries explicitly. |
@@ -639,7 +639,9 @@ Decisions the plan already makes, which you can overrule by rejecting the revisi
 
 Tickets before acceptance are B-PRE-01 and B-SPIKE. They land as their own pull requests. They do not start the migration.
 
-### B-PRE-01 — Green baseline on the current app
+### B-PRE-01 — Green baseline on the current app (complete)
+
+Merged in [PR #2](https://github.com/alisohdev/better-content/pull/2) as `23b351d`; [full hosted CI passed on `df679f9`](https://github.com/alisohdev/better-content/actions/runs/45639583424). The scope and acceptance criteria below are retained as historical records, not a new task.
 
 - **Size:** M
 - **Depends on:** nothing in this migration
