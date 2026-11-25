@@ -12,8 +12,11 @@ import { contentScriptGenerationSettings } from "./content-generation-repository
 import { createContentDraftApplicationService } from "./content-draft-service";
 import { createContentAcceptanceApplicationService } from "./content-acceptance-service";
 import { createContentReadApplicationService } from "./content-read-service";
-import { projectContentDocumentV2ToV3 } from "../domain";
-import { contentDocumentV2Schema } from "../domain";
+import {
+  projectContentDocumentToV4,
+  projectContentDocumentV2ToV3,
+  type ContentDocument,
+} from "../domain";
 
 vi.mock("@/db", () => ({ db: {} }));
 vi.mock("@/lib/auth/server", () => ({ getServerSession: vi.fn() }));
@@ -45,7 +48,7 @@ function v2Document(text: string) {
   };
 }
 
-async function seedContent(draftDocument: typeof v1Document | ReturnType<typeof v2Document>) {
+async function seedContent(draftDocument: ContentDocument) {
   const userId = randomUUID();
   const workspaceId = randomUUID();
   const dnaId = randomUUID();
@@ -245,6 +248,35 @@ describe("Content acceptance application service", () => {
     expect(content?.acceptedVersionId).toBe(first.acceptedVersion.id);
   });
 
+  it("keeps historical V3 intact through projection and acceptance", async () => {
+    const v3 = projectContentDocumentV2ToV3(v2Document("Historical Draft"));
+    const context = await seedContent(v3);
+    const service = createAcceptanceService(context.userId);
+    const input = { workspaceId: context.workspaceId, contentId: context.contentId };
+
+    const v4 = projectContentDocumentToV4(v3);
+    const drafts = createContentDraftApplicationService({
+      database,
+      getAuthenticatedUserId: async () => context.userId,
+      clock: () => acceptedAt,
+      logger: { info: vi.fn(), warn: vi.fn() },
+    });
+    await expect(
+      drafts.saveContentDraft({ ...input, baseRevision: 1, document: v4 }),
+    ).resolves.toMatchObject({ document: v3, revision: 1, updatedAt: createdAt });
+
+    const first = await service.acceptContent({ ...input, expectedDraftRevision: 1 });
+    expect(first.draft).toMatchObject({ document: v3, editorDocument: v4, revision: 1 });
+    expect(first.acceptedVersion).toMatchObject({ document: v3, versionNumber: 2 });
+
+    const repeated = await service.acceptContent({ ...input, expectedDraftRevision: 1 });
+    expect(repeated.acceptedVersion.id).toBe(first.acceptedVersion.id);
+    expect(await contentVersionsFor(context.contentId)).toMatchObject([
+      { source: "AI_GENERATED", document: v1Document },
+      { source: "CREATOR_ACCEPTED", document: v3 },
+    ]);
+  });
+
   it("returns an ordered, safe history read model with only the current accepted marker", async () => {
     const context = await seedContent(v2Document("Draft A"));
     const acceptance = createAcceptanceService(context.userId);
@@ -289,7 +321,7 @@ describe("Content acceptance application service", () => {
       contentId: context.contentId,
       expectedDraftRevision: 1,
     });
-    const changed = v2Document("Draft B");
+    const changed = projectContentDocumentToV4(v2Document("Draft B"));
     await drafts.saveContentDraft({
       workspaceId: context.workspaceId,
       contentId: context.contentId,
@@ -305,9 +337,7 @@ describe("Content acceptance application service", () => {
       workspaceId: context.workspaceId,
       contentId: context.contentId,
       baseRevision: 2,
-      document: projectContentDocumentV2ToV3(
-        contentDocumentV2Schema.parse(first.acceptedVersion.document),
-      ),
+      document: projectContentDocumentToV4(first.acceptedVersion.document),
     });
     const third = await service.acceptContent({
       workspaceId: context.workspaceId,
@@ -324,7 +354,7 @@ describe("Content acceptance application service", () => {
     ).toEqual([1, 2, 3, 4]);
   });
 
-  it("migrates a legacy V1 Draft atomically before creating its accepted V3 Version", async () => {
+  it("migrates a legacy V1 Draft atomically before creating its accepted V4 Version", async () => {
     const context = await seedContent(v1Document);
     const service = createAcceptanceService(context.userId);
 
@@ -345,7 +375,7 @@ describe("Content acceptance application service", () => {
       [3, "CREATOR_ACCEPTED"],
     ]);
     expect(versions[1]?.document).toEqual(v1Document);
-    expect(result.acceptedVersion.document.schemaVersion).toBe(3);
+    expect(result.acceptedVersion.document.schemaVersion).toBe(4);
     expect(draft?.document).toEqual(result.acceptedVersion.document);
     expect(draft?.revision).toBe(2);
     expect(

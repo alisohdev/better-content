@@ -1026,14 +1026,16 @@ export function contentDocumentsEqual(left: unknown, right: unknown): boolean {
   const leftDocument = parseContentDocument(left);
   const rightDocument = parseContentDocument(right);
 
-  if (leftDocument.schemaVersion === 2 && rightDocument.schemaVersion === 3)
-    return contentDocumentsEqual(projectContentDocumentV2ToV3(leftDocument), rightDocument);
-  if (leftDocument.schemaVersion === 3 && rightDocument.schemaVersion === 2)
-    return contentDocumentsEqual(leftDocument, projectContentDocumentV2ToV3(rightDocument));
-  if (leftDocument.schemaVersion === 3 && rightDocument.schemaVersion === 4)
-    return contentDocumentsEqual(projectContentDocumentV3ToV4(leftDocument), rightDocument);
-  if (leftDocument.schemaVersion === 4 && rightDocument.schemaVersion === 3)
-    return contentDocumentsEqual(leftDocument, projectContentDocumentV3ToV4(rightDocument));
+  if (
+    leftDocument.schemaVersion !== rightDocument.schemaVersion &&
+    leftDocument.schemaVersion !== 1 &&
+    rightDocument.schemaVersion !== 1
+  ) {
+    return contentDocumentsEqual(
+      projectContentDocumentToV4(leftDocument),
+      projectContentDocumentToV4(rightDocument),
+    );
+  }
 
   if (leftDocument.schemaVersion !== rightDocument.schemaVersion) return false;
 
