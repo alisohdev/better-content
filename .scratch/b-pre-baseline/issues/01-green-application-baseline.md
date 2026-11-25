@@ -12,8 +12,8 @@ A projected V2 or V3 Draft that has no semantic edit stays at its historical sch
 
 ## Acceptance
 
-- [ ] Reproduce the known failures, reconcile the matrix with independent review, and fix proven defects.
-- [ ] Pin and verify Auth schema generation, and record audit findings and remediation.
+- [x] Reproduce the known failures, reconcile the matrix with independent review, and fix proven defects.
+- [x] Pin and verify Auth schema generation, and record audit findings and remediation.
 - [ ] Pass all required GitHub Actions steps on a dedicated PR targeting main.
 
 ## Root-cause matrix
@@ -161,3 +161,11 @@ The owner should confirm whether the first approval of an otherwise untouched hi
 ## Scope
 
 ADR-020 remains Accepted. This baseline does not alter ADR-021, start the migration, or introduce product features. Historical migrations and immutable Content Versions are preserved. CI still runs its existing workflow and generation tests use deterministic providers.
+
+## Browser verification follow-up
+
+The [first PR workflow](https://github.com/alisohdev/better-content/actions/runs/45631469574/job/139265505176) passed installation, generation checks, migrations, format, lint, typecheck, TypeScript and Go tests, the Go race check, both builds, and Chromium installation. Playwright reported seven failures and one flaky sign-up attempt.
+
+- Authentication, Content DNA, and Ideas scenarios now use the shell's current workspace and locale controls, including the mobile menu. The Persian Assets scenario uses localized upload labels. Asset lifecycle assertions target the uploaded row because refreshing the library dismisses the transient upload notice. The one-shot worker waits for a durable PROCESS_UPLOAD job because admission can render a Pending row before finalization has queued processing.
+- The Content Copy failure exposed a V4 recovery defect. The shared exporter now validates and renders V4, preserves and labels B-roll queries, and excludes private Asset IDs. The V3 recovery behavior remains covered.
+- The Assets scenarios exposed an S3 SDK error on permanent promotion. Wrapping the existing file ReadStream erased the file length the SDK needs for its checksummed upload. The runtime adapter now forwards the original stream, and the E2E S3 mock decodes the SDK's object framing. A loopback regression test verifies the SDK receives the correct decoded length. The E2E worker closes its database pool after each job run.

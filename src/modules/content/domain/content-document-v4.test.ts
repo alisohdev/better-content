@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   contentDocumentV4Schema,
   contentDocumentsEqual,
+  exportContentDocumentV4Recovery,
   parseGeneratedContentDocumentV4,
   projectContentDocumentV3ToV4,
   type ContentDocumentV3,
@@ -34,6 +35,36 @@ describe("ContentDocumentV4", () => {
     expect(projected.script.blocks[0]).toMatchObject(v3.script.blocks[0]);
     expect(projected.script.blocks[0].editDirections[0]).not.toHaveProperty("searchQuery");
     expect(contentDocumentsEqual(v3, projected)).toBe(true);
+  });
+
+  it("exports V4 recovery text with the search query and without private Asset IDs", () => {
+    const projected = projectContentDocumentV3ToV4(v3);
+    const block = projected.script.blocks[0];
+    const document = {
+      ...projected,
+      script: {
+        blocks: [
+          {
+            ...block,
+            editDirections: [{ ...block.editDirections[0], searchQuery: "creator desk" }],
+          },
+        ],
+      },
+    };
+
+    const recovery = exportContentDocumentV4Recovery(
+      document,
+      {},
+      {
+        attachedMedia: "Attached media",
+        unavailable: "Unavailable",
+        searchQuery: "Search term",
+      },
+    );
+    expect(recovery).toContain("A script block");
+    expect(recovery).toContain("Search term: creator desk");
+    expect(recovery).toContain("Attached media: Unavailable");
+    expect(recovery).not.toContain(id("04"));
   });
 
   it("accepts only canonical B-roll search text", () => {

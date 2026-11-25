@@ -438,7 +438,7 @@ test("shows the localized Ideas setup state in both directions", async ({ page }
   await expect(page.getByRole("heading", { name: "Set up Content DNA first" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate 20 Ideas" })).toHaveCount(0);
 
-  await page.getByRole("link", { name: "فارسی" }).click();
+  await page.getByRole("link", { name: "فا", exact: true }).click();
   await expect(page).toHaveURL(/\/fa\/ideas$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "fa");
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");

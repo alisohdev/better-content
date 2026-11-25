@@ -7,7 +7,7 @@ import type { SaveContentDraftActionResult } from "../application/content-action
 import type { ContentDraftDto } from "../application/content-read-service";
 import {
   contentDocumentsEqual,
-  exportContentDocumentV3Recovery,
+  exportContentDocumentV4Recovery,
   exportContentDocumentV2Recovery,
   type ContentDocumentV2,
   type ContentDocumentV3,
@@ -19,7 +19,7 @@ export type ContentDraftAutosaveStatus = "unsaved" | "saving" | "saved" | "faile
 export type AutosaveDocument = ContentDocumentV2 | ContentDocumentV3 | ContentDocumentV4;
 const defaultRecoveryExport = (document: AutosaveDocument) =>
   document.schemaVersion === 3 || document.schemaVersion === 4
-    ? exportContentDocumentV3Recovery(document)
+    ? exportContentDocumentV4Recovery(document)
     : exportContentDocumentV2Recovery(document);
 export type AutosaveSaveInput = Readonly<{
   workspaceId: string;

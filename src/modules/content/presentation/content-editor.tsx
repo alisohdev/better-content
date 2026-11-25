@@ -34,7 +34,7 @@ import {
   saveContentDraftAction,
 } from "../application/content-actions";
 import type { ContentDetailDto } from "../application/content-read-service";
-import { deriveContentAcceptanceState, exportContentDocumentV3Recovery } from "../domain";
+import { deriveContentAcceptanceState, exportContentDocumentV4Recovery } from "../domain";
 import type { ContentDocumentV4 } from "../domain";
 import { ContentVersionHistory } from "./content-version-history";
 import { StructuredScriptEditor } from "./structured-script-editor";
@@ -75,9 +75,10 @@ export function ContentEditor({ content, workspaceId }: Props) {
     save,
     workspaceId,
     recoveryExport: (document) =>
-      exportContentDocumentV3Recovery(document, content.assetPresentations, {
+      exportContentDocumentV4Recovery(document, content.assetPresentations, {
         attachedMedia: t("historyAttachedMedia"),
         unavailable: t("assetUnavailable"),
+        searchQuery: t("searchQueryLabel"),
       }),
   });
   const [acceptedVersionId, setAcceptedVersionId] = useState(content.acceptedVersionId);

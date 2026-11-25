@@ -150,15 +150,40 @@ async function runDeterministicAssetWorker(): Promise<void> {
   );
 }
 
-async function createUpload(page: Page, displayName: string): Promise<void> {
-  await page.getByLabel("Display name").first().fill(displayName);
-  await page.getByLabel("Media file").setInputFiles({
+async function createUpload(page: Page, displayName: string, locale: "en" | "fa"): Promise<void> {
+  const labels =
+    locale === "en"
+      ? { name: "Display name", file: "Media file", upload: "Upload media", pending: "Pending" }
+      : { name: "نام نمایشی", file: "فایل رسانه", upload: "بارگذاری رسانه", pending: "در انتظار" };
+  await page.getByLabel(labels.name).first().fill(displayName);
+  await page.getByLabel(labels.file).setInputFiles({
     name: "cover.jpg",
     mimeType: "image/jpeg",
     buffer: imageBytes,
   });
-  await page.getByRole("button", { name: "Upload media" }).click();
-  await expect(page.getByRole("status")).toContainText("processing");
+  await page.getByRole("button", { name: labels.upload }).click();
+  const asset = page.getByRole("button").filter({ hasText: displayName });
+  await expect(asset.getByText(labels.pending, { exact: true })).toBeVisible();
+
+  // PENDING is visible as soon as admission succeeds. Finalization is a
+  // separate request and must have queued processing before the one-shot worker.
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    await expect
+      .poll(async () => {
+        const result = await client.query(
+          `SELECT 1 FROM assets AS asset
+         JOIN asset_jobs AS job ON job.payload->>'assetId' = asset.id::text
+         WHERE asset.display_name = $1 AND job.type = 'PROCESS_UPLOAD'`,
+          [displayName],
+        );
+        return result.rowCount;
+      })
+      .toBe(1);
+  } finally {
+    await client.end();
+  }
 }
 
 test("EN/LTR persists upload, READY selection, autosave, acceptance, and history", async ({
@@ -168,17 +193,17 @@ test("EN/LTR persists upload, READY selection, autosave, acceptance, and history
   await signUp(page, email, "en");
   const contentId = await createContentFixture(email);
   await page.goto("/en/assets");
-  await createUpload(page, "B-roll cover");
+  await createUpload(page, "B-roll cover", "en");
   await runDeterministicAssetWorker();
   await page.reload();
-  await expect(page.getByText("B-roll cover", { exact: true })).toBeVisible();
-  await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+  const uploadedAsset = page.getByRole("button").filter({ hasText: "B-roll cover" });
+  await expect(uploadedAsset.getByText("Ready", { exact: true })).toBeVisible();
 
   await page.goto("/en/content/" + contentId);
   const edit = page.locator('section[aria-label="Edit"]');
   await edit.getByRole("button", { name: "Add" }).click();
   const directionDialog = page.getByRole("dialog");
-  await directionDialog.getByLabel("Direction type").selectOption("BROLL_CUE");
+  await directionDialog.locator("#direction-type").selectOption("BROLL_CUE");
   await directionDialog.getByLabel("Description").fill("Cover the opening");
   await directionDialog.getByRole("button", { name: "Add" }).click();
   await edit.getByRole("button", { name: "Select media" }).click();
@@ -200,19 +225,19 @@ test("FA/RTL manages mixed-direction media names and safely deletes after confir
   await page.goto("/fa/assets");
   await expect(page.locator("html")).toHaveAttribute("lang", "fa");
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await createUpload(page, "کاور English 42");
+  await createUpload(page, "کاور English 42", "fa");
   await runDeterministicAssetWorker();
   await page.reload();
-  await expect(page.getByText("کاور English 42", { exact: true })).toBeVisible();
-  await expect(page.getByText("آماده", { exact: true })).toBeVisible();
-  await page.getByRole("button").filter({ hasText: "کاور English 42" }).first().click();
+  const uploadedAsset = page.getByRole("button").filter({ hasText: "کاور English 42" });
+  await expect(uploadedAsset.getByText("آماده", { exact: true })).toBeVisible();
+  await uploadedAsset.click();
   const detail = page.getByRole("dialog");
   await expect(detail.getByRole("img", { name: "کاور English 42" })).toBeVisible();
   await detail.getByRole("button", { name: "حذف رسانه" }).click();
   const confirmation = page.getByRole("alertdialog");
   await expect(confirmation).toBeVisible();
   await confirmation.getByRole("button", { name: "حذف همیشگی" }).click();
-  await expect(page.getByText("در حال حذف", { exact: true })).toBeVisible();
+  await expect(uploadedAsset.getByText("در حال حذف", { exact: true })).toBeVisible();
   await runDeterministicAssetWorker();
   await page.reload();
   await expect(page.getByText("کاور English 42", { exact: true })).toHaveCount(0);

@@ -1,8 +1,14 @@
+import { createReadStream } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 
 import { FilesystemAssetStorage } from "./filesystem-asset-storage";
 import { createRuntimeAssetStorage } from "./runtime-asset-storage";
+import { createPermanentStorageKey } from "./storage-keys";
 import {
   S3CompatibleAssetStorage,
   type S3CompatiblePrivateObjectClient,
@@ -56,6 +62,51 @@ describe("runtime AssetStorage composition", () => {
       secretAccessKey: "test-secret",
       forcePathStyle: true,
     });
+  });
+
+  it("preserves the file length for checksummed permanent uploads", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "asset-storage-test-"));
+    const uploadPath = join(directory, "payload");
+    const data = Buffer.from("test asset");
+    const requests: Array<{ encoding?: string; decodedLength?: string }> = [];
+    const server = createServer((request, response) => {
+      requests.push({
+        encoding: request.headers["content-encoding"],
+        decodedLength: request.headers["x-amz-decoded-content-length"] as string | undefined,
+      });
+      request.resume();
+      request.once("end", () => response.writeHead(200).end());
+    });
+
+    try {
+      await writeFile(uploadPath, data);
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+      });
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("Mock S3 did not bind.");
+      const storage = createRuntimeAssetStorage({
+        ...s3Environment,
+        ASSET_S3_ENDPOINT: `http://127.0.0.1:${address.port}`,
+      });
+
+      await storage.putPermanentFromStream(
+        createPermanentStorageKey(),
+        createReadStream(uploadPath),
+      );
+
+      expect(requests).toEqual([
+        {
+          encoding: "aws-chunked",
+          decodedLength: String(data.length),
+        },
+      ]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(directory, { recursive: true });
+    }
   });
 
   it("fails fast for malformed production S3 configuration instead of falling back", () => {

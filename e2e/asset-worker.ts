@@ -25,9 +25,13 @@ const registry = new MapAssetJobHandlerRegistry()
   .register("EXPIRE_UPLOAD", createUploadExpirationHandler({ storage }))
   .register("DELETE_ASSET", createAssetDeletionHandler({ storage }));
 
-await runAssetJobBatch({
-  database: db,
-  workerId: "e2e-asset-runner-" + randomUUID(),
-  registry,
-  logger,
-});
+try {
+  await runAssetJobBatch({
+    database: db,
+    workerId: "e2e-asset-runner-" + randomUUID(),
+    registry,
+    logger,
+  });
+} finally {
+  await db.$client.end();
+}

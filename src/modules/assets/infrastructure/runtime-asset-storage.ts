@@ -152,7 +152,7 @@ function createAwsS3PrivateObjectClient(
           new PutObjectCommand({
             ...commandOptions,
             Key: key,
-            Body: Readable.from(source),
+            Body: source instanceof Readable ? source : Readable.from(source),
             IfNoneMatch: "*",
           }),
         );
