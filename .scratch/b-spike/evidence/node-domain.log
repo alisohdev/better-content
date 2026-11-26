@@ -1,0 +1,21 @@
+
+ RUN  v4.1.11 /app
+
+ ✓ src/modules/dna/domain/content-dna-payload.test.ts (4 tests) 200ms
+ ✓ src/modules/content/domain/teleprompter-projection.test.ts (3 tests) 8ms
+ ✓ src/modules/content/domain/content-document-v3.test.ts (4 tests) 196ms
+ ✓ src/modules/ideas/domain/idea-generation-contracts.test.ts (19 tests) 220ms
+ ✓ src/modules/ai/domain/generate-ideas.test.ts (8 tests) 200ms
+ ✓ src/modules/content/domain/content-script-contracts.test.ts (31 tests) 194ms
+ ✓ src/modules/content/domain/content-document-v4.test.ts (5 tests) 203ms
+ ✓ src/modules/content/domain/edit-guide-projection.test.ts (5 tests) 10ms
+ ✓ src/modules/assets/domain/upload-contracts.test.ts (3 tests) 13ms
+ ✓ src/modules/assets/domain/asset-contracts.test.ts (2 tests) 15ms
+ ✓ src/modules/assets/domain/external-url-contracts.test.ts (9 tests) 11ms
+ ✓ src/modules/assets/domain/asset-job-contracts.test.ts (3 tests) 13ms
+
+ Test Files  12 passed (12)
+      Tests  96 passed (96)
+   Start at  19:11:55
+   Duration  3.39s (transform 2.13s, setup 727ms, import 8.06s, tests 1.28s, environment 2ms)
+

@@ -1,0 +1,22 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   'audio-mp3'
++ ]
+- []
+
+    at <anonymous> (/app/.scratch/b-spike/harness/media.mts:95:8) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [ 'audio-mp3' ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.19.0

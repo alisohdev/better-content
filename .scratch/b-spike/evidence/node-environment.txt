@@ -1,0 +1,23 @@
+command=node --import tsx .scratch/b-spike/harness/serve-node.mts 
+Linux 5.15.167.4-microsoft-standard-WSL2 x86_64
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="13"
+VERSION="13 (trixie)"
+VERSION_CODENAME=trixie
+DEBIAN_VERSION_FULL=13.7
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+cpu.cfs_quota_us=200000
+cpu.cfs_period_us=100000
+memory.limit_in_bytes=1073741824
+125989464 bytes /opt/node/bin/node
+{"node":"24.19.0","acorn":"8.17.0","ada":"3.4.4","amaro":"1.1.10","ares":"1.34.6","brotli":"1.2.0","cldr":"48.0","icu":"78.3","llhttp":"9.4.3","merve":"1.2.2","modules":"137","napi":"10","nbytes":"0.1.4","ncrypto":"0.0.1","nghttp2":"1.69.0","nghttp3":"","ngtcp2":"","openssl":"3.5.7","simdjson":"4.6.4","simdutf":"6.4.0","sqlite":"3.53.3","tz":"2026b","undici":"7.29.0","unicode":"17.0","uv":"1.52.1","uvwasi":"0.0.23","v8":"13.6.233.17-node.51","zlib":"1.3.2.1-motley-3246f1b","zstd":"1.5.7"}
+ffprobe version 7.1.5-0+deb13u1 Copyright (c) 2007-2026 the FFmpeg developers
+cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46  /usr/bin/ffprobe
+ffmpeg	7:7.1.5-0+deb13u1
+libavcodec61:amd64	7:7.1.5-0+deb13u1
+libavformat61:amd64	7:7.1.5-0+deb13u1
+libavutil59:amd64	7:7.1.5-0+deb13u1

@@ -1,0 +1,3 @@
+Started development server: http://127.0.0.1:3100
+2026-11-25T19:13:37.734Z ERROR [Better Auth]: Invalid origin: https://foreign.example
+2026-11-25T19:13:37.829Z WARN [Better Auth]: Invalid password

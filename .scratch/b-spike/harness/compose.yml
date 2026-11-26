@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:18@sha256:1957b2ff3137e4ef7f3bc813e74fff50b1e1ffddc85c8b9d6f14ade972be8687
+    platform: linux/amd64
+    environment:
+      POSTGRES_PASSWORD: spike-disposable-only
+    tmpfs:
+      - /var/lib/postgresql
+    volumes:
+      - ./databases.sql:/docker-entrypoint-initdb.d/databases.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  s3:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    platform: linux/amd64
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: spike-disposable
+      MINIO_ROOT_PASSWORD: spike-disposable-only
+    tmpfs:
+      - /data
+  runner:
+    build:
+      context: ../../..
+      dockerfile: .scratch/b-spike/harness/Dockerfile
+    platform: linux/amd64
+    cpus: 2
+    mem_limit: 1024m
+    depends_on:
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_started
+    environment:
+      BETTER_AUTH_URL: http://127.0.0.1:3100
+      ASSET_S3_ENDPOINT: http://s3:9000
+      ASSET_S3_BUCKET: spike-private
+      ASSET_S3_REGION: us-east-1
+      ASSET_S3_ACCESS_KEY_ID: spike-disposable
+      ASSET_S3_SECRET_ACCESS_KEY: spike-disposable-only
+      ASSET_S3_FORCE_PATH_STYLE: "true"
+      TSX_TSCONFIG_PATH: /app/.scratch/b-spike/harness/tsconfig.json
+    volumes:
+      - ../evidence:/evidence
+networks:
+  default:
+    internal: true

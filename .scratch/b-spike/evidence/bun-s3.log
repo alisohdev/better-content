@@ -1,0 +1,10 @@
+
+ RUN  v4.1.11 /app
+
+ ✓ src/modules/assets/infrastructure/s3-compatible-asset-storage.live.test.ts (1 test) 104ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  19:13:45
+   Duration  352ms (transform 72ms, setup 25ms, import 150ms, tests 104ms, environment 0ms)
+

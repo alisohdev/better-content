@@ -1,0 +1,552 @@
+{
+  "runtime": "bun",
+  "versions": {
+    "node": "26.3.0",
+    "bun": "1.4.4",
+    "boringssl": "41bf9b59c2ebf277a7aa427e1ecad5cc80dd4d4f",
+    "openssl": "1.1.0",
+    "llhttp": "9.4.2",
+    "libarchive": "27cbc7827172698143e440801fc0ba39ccb4f1f5",
+    "mimalloc": "92ef6587c57b262f6e6abf513f7776a2f8d12aeb",
+    "picohttpparser": "f4d94b48b31e0abae029ebeafcfd9ca0680ede58",
+    "uwebsockets": "38afee6c84fcf48c0edb2466aa4b27d287a59c30",
+    "webkit": "d6375c72affe0f70222cdcb45012b10f0bf3a9d5",
+    "zig": "04e7f6ac1e009525bc00934f20199c68f04e0a24",
+    "zlib": "12731092979c6d07f42da27da673a9f6c7b13586",
+    "tinycc": "05f0fafaa3be31e31d7b4b5c17dc60f62c991171",
+    "lolhtml": "725ce499aa9b71e38b7a2d0a9fbb6d7294a4079e",
+    "ares": "c7a3138dcfe3bb0eaaf10c0c24c36dc66dc790ab",
+    "libdeflate": "92e6a0db9fa848d742f9eb286c92afc60f2c3dda",
+    "usockets": "38afee6c84fcf48c0edb2466aa4b27d287a59c30",
+    "lshpack": "cf0f70dd10b352194c97448eb5d00b4aa484f531",
+    "zstd": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+    "v8": "14.6.202.34-node.20",
+    "uv": "1.48.0",
+    "napi": "10",
+    "icu": "78.3",
+    "unicode": "17.0",
+    "sqlite": "3.53.4",
+    "typescript": "7.0.2",
+    "modules": "147"
+  },
+  "sharp": {
+    "aom": "3.15.1",
+    "archive": "3.8.9",
+    "cairo": "1.18.6",
+    "cgif": "0.5.4",
+    "exif": "0.6.26",
+    "expat": "2.8.5",
+    "ffi": "3.8.0",
+    "fontconfig": "2.18.3",
+    "freetype": "2.14.3",
+    "fribidi": "1.0.17",
+    "glib": "2.90.0",
+    "harfbuzz": "14.5.0",
+    "heif": "1.23.5",
+    "highway": "1.4.0",
+    "imagequant": "2.4.1",
+    "lcms": "2.19.1",
+    "mozjpeg": "0826579",
+    "pango": "1.58.2",
+    "pixman": "0.46.4",
+    "png": "1.6.58",
+    "proxy-libintl": "0.5",
+    "rsvg": "2.63.2",
+    "tiff": "4.7.2",
+    "uhdr": "2.0.2",
+    "vips": "8.18.7",
+    "webp": "1.6.0",
+    "xml2": "2.15.4",
+    "zlib-ng": "2.3.3",
+    "sharp": "0.35.5"
+  },
+  "ffprobe": "ffprobe version 7.1.5-0+deb13u1 Copyright (c) 2007-2026 the FFmpeg developers",
+  "timeoutMs": 102.493809,
+  "idleRss": 58458112,
+  "peakRss": 74670080,
+  "results": [
+    {
+      "corpus": "images",
+      "fixture": "static-jpeg",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 268,
+        "width": 2,
+        "height": 3
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 268,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "static-png",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 95,
+        "width": 2,
+        "height": 3
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 95,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "static-webp",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "WEBP",
+        "sizeBytes": 60,
+        "width": 2,
+        "height": 3
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "WEBP",
+        "sizeBytes": 60,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "truncated-jpeg",
+      "matched": true,
+      "expected": {
+        "failureCode": "INVALID_MEDIA"
+      },
+      "actual": {
+        "failureCode": "INVALID_MEDIA"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "empty-file",
+      "matched": true,
+      "expected": {
+        "failureCode": "INVALID_MEDIA"
+      },
+      "actual": {
+        "failureCode": "INVALID_MEDIA"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "corrupt-jpeg",
+      "matched": true,
+      "expected": {
+        "failureCode": "INVALID_MEDIA"
+      },
+      "actual": {
+        "failureCode": "INVALID_MEDIA"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "extension-mismatch",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      },
+      "actual": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "declared-type-mismatch",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      },
+      "actual": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "dimension-limit-exact",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 264,
+        "width": 12000,
+        "height": 1
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 264,
+        "width": 12000,
+        "height": 1
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "dimension-limit-over",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_LIMIT_EXCEEDED"
+      },
+      "actual": {
+        "failureCode": "MEDIA_LIMIT_EXCEEDED"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "pixel-limit-exact",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 799682,
+        "width": 12000,
+        "height": 5000
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "PNG",
+        "sizeBytes": 799682,
+        "width": 12000,
+        "height": 5000
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "pixel-limit-over",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_LIMIT_EXCEEDED"
+      },
+      "actual": {
+        "failureCode": "MEDIA_LIMIT_EXCEEDED"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "byte-limit-over",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_LIMIT_EXCEEDED"
+      },
+      "actual": {
+        "failureCode": "MEDIA_LIMIT_EXCEEDED"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-1",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-2",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-3",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-4",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-5",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-6",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-7",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "exif-orientation-8",
+      "matched": true,
+      "expected": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      },
+      "actual": {
+        "mediaType": "IMAGE",
+        "mediaFormat": "JPEG",
+        "sizeBytes": 956,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "animated-webp",
+      "matched": true,
+      "expected": {
+        "failureCode": "UNSUPPORTED_MEDIA"
+      },
+      "actual": {
+        "failureCode": "UNSUPPORTED_MEDIA"
+      }
+    },
+    {
+      "corpus": "images",
+      "fixture": "unsupported-tiff",
+      "matched": true,
+      "expected": {
+        "failureCode": "UNSUPPORTED_MEDIA"
+      },
+      "actual": {
+        "failureCode": "UNSUPPORTED_MEDIA"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "video-h264-aac",
+      "matched": true,
+      "expected": {
+        "mediaType": "VIDEO",
+        "mediaFormat": "MP4",
+        "sizeBytes": 12412,
+        "width": 320,
+        "height": 240,
+        "durationMs": 1000,
+        "videoCodec": "H264",
+        "audioCodec": "AAC"
+      },
+      "actual": {
+        "mediaType": "VIDEO",
+        "mediaFormat": "MP4",
+        "sizeBytes": 12412,
+        "width": 320,
+        "height": 240,
+        "durationMs": 1000,
+        "videoCodec": "H264",
+        "audioCodec": "AAC"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "video-declared-audio",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      },
+      "actual": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "audio-mp3",
+      "matched": false,
+      "expected": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "MP3",
+        "sizeBytes": 8586,
+        "durationMs": 1000,
+        "audioCodec": "MP3 Layer III"
+      },
+      "actual": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "MP3",
+        "sizeBytes": 8586,
+        "durationMs": 1045,
+        "audioCodec": "MP3 Layer III"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "audio-mp3-wrong-extension",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      },
+      "actual": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "audio-m4a",
+      "matched": true,
+      "expected": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "M4A",
+        "sizeBytes": 9978,
+        "durationMs": 1000,
+        "audioCodec": "AAC"
+      },
+      "actual": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "M4A",
+        "sizeBytes": 9978,
+        "durationMs": 1000,
+        "audioCodec": "AAC"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "audio-wav",
+      "matched": true,
+      "expected": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "WAV",
+        "sizeBytes": 88278,
+        "durationMs": 1000,
+        "audioCodec": "PCM"
+      },
+      "actual": {
+        "mediaType": "AUDIO",
+        "mediaFormat": "WAV",
+        "sizeBytes": 88278,
+        "durationMs": 1000,
+        "audioCodec": "PCM"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "audio-declared-video",
+      "matched": true,
+      "expected": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      },
+      "actual": {
+        "failureCode": "MEDIA_TYPE_MISMATCH"
+      }
+    },
+    {
+      "corpus": "av",
+      "fixture": "corrupt-audio",
+      "matched": true,
+      "expected": {
+        "failureCode": "INVALID_MEDIA"
+      },
+      "actual": {
+        "failureCode": "INVALID_MEDIA"
+      }
+    }
+  ]
+}
