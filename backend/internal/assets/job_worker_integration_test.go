@@ -17,7 +17,7 @@ import (
 )
 
 func TestAssetWorkerProcessesAllJobTypes(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
 	ctx := context.Background()
 	storage := newWorkerTestStorage(t)
@@ -115,7 +115,7 @@ func TestAssetWorkerProcessesAllJobTypes(t *testing.T) {
 }
 
 func TestAssetWorkerStaleMediaCannotCommitAndFinalCrashFailsAsset(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
 	ctx := context.Background()
 	storage := newWorkerTestStorage(t)
@@ -157,7 +157,7 @@ func TestAssetWorkerStaleMediaCannotCommitAndFinalCrashFailsAsset(t *testing.T) 
 }
 
 func TestAssetWorkerDrainsActiveAttemptAndLeavesNextForRestart(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
 	storage := newWorkerTestStorage(t)
 	started, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})

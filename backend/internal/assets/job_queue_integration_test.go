@@ -4,45 +4,70 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
+	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"bettercontent/backend/internal/platform/postgres"
+
 	"github.com/google/uuid"
 )
+
+func openWorkerTestDatabase(t *testing.T) *sql.DB {
+	t.Helper()
+	admin := openAssetTestDatabase(t)
+	// Other integration packages exercise the real API and can enqueue jobs
+	// concurrently. Clone the reviewed queue table into an isolated schema so
+	// these worker tests claim only their fixtures.
+	schema := "worker_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := admin.Exec("CREATE SCHEMA " + schema); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := admin.Exec("DROP SCHEMA " + schema + " CASCADE"); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := admin.Exec("CREATE TABLE " + schema + ".asset_jobs (LIKE public.asset_jobs INCLUDING ALL)"); err != nil {
+		t.Fatal(err)
+	}
+	dsn, err := url.Parse(os.Getenv("TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatal("could not configure isolated worker queue")
+	}
+	query := dsn.Query()
+	query.Set("search_path", schema+",public")
+	dsn.RawQuery = query.Encode()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	db, err := postgres.Open(ctx, dsn.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
+}
 
 func addWorkerJob(t *testing.T, db *sql.DB, kind, assetID string, maxAttempts int) string {
 	t.Helper()
 	id := uuid.NewString()
-	// Make this fixture first in the shared disposable integration queue.
 	_, err := db.Exec(`
  INSERT INTO asset_jobs (id,type,dedupe_key,payload,max_attempts,scheduled_at)
- VALUES ($1,$2,$3,jsonb_build_object('assetId',$4::text),$5,'-infinity')
+ VALUES ($1,$2,$3,jsonb_build_object('assetId',$4::text),$5,clock_timestamp())
  `, id, kind, kind+":"+assetID, assetID, maxAttempts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if _, err := db.Exec("DELETE FROM asset_jobs WHERE id=$1", id); err != nil {
-			t.Error(err)
-		}
-	})
 	return id
 }
 
 func TestAssetJobLeaseLifecycle(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	ctx := context.Background()
 	id := addWorkerJob(t, db, "RECONCILE_STORAGE", uuid.NewString(), 3)
-	// Hold the other due rows so the losing concurrent claimant has no other work.
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec("SELECT id FROM asset_jobs WHERE id <> $1 FOR UPDATE", id); err != nil {
-		t.Fatal(err)
-	}
 	results := make(chan *assetJob, 2)
 	var workers sync.WaitGroup
 	for range 2 {

@@ -11,7 +11,7 @@ import (
 )
 
 func TestUploadRetriesPublishTheSamePrivateSnapshot(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
 	ctx := context.Background()
 	storage := newWorkerTestStorage(t)
@@ -64,7 +64,7 @@ func TestUploadRetriesPublishTheSamePrivateSnapshot(t *testing.T) {
 }
 
 func TestWorkerRejectsPublicationConflictWithDifferentBytes(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
 	ctx := context.Background()
 	const staged = "first snapshot"

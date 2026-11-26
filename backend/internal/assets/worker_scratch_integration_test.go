@@ -13,7 +13,7 @@ import (
 )
 
 func TestWorkerScratchReapsOnlyOldAttemptDirectories(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	base := t.TempDir()
 	old, err := makeWorkerAttemptScratch(base, workerScratchFolder, uuid.NewString())
 	if err != nil {
@@ -58,7 +58,7 @@ func TestWorkerScratchReapsOnlyOldAttemptDirectories(t *testing.T) {
 }
 
 func TestWorkerRemovesPartialAttemptFilesAfterCancellation(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
 	id, _ := seedWorkerAsset(t, db, userID, workspaceID, "EXTERNAL_URL", "PENDING", 0)
 	job := claimWorkerFixture(t, db, addWorkerJob(t, db, "INGEST_EXTERNAL_URL", id, 5))
@@ -88,7 +88,7 @@ func (r *cancelDuringRead) Read(buffer []byte) (int, error) {
 }
 
 func TestWorkerReapsFilesystemPublicationScratch(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	storage := newWorkerTestStorage(t).(*filesystemStorage)
 	w := assetWorker{Service: newService(db, storage, nil, nil), tempDir: t.TempDir()}
 	now := time.Now()

@@ -10,7 +10,7 @@ import (
 )
 
 func TestAssetWorkerPreflight(t *testing.T) {
-	db := openAssetTestDatabase(t)
+	db := openWorkerTestDatabase(t)
 	storage := newWorkerTestStorage(t)
 	dir := t.TempDir()
 	inspector := newMediaInspector("test-ffprobe", "7.1.5", func(_ context.Context, _ string, args []string, _ time.Duration, _ int) (ffprobeResult, error) {
