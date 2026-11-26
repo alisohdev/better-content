@@ -47,7 +47,10 @@ func TestPinnedRemoteHTTPRequesterUsesPinnedIPAndVerifiesTLSHost(t *testing.T) {
 	}
 	t.Setenv("SSL_CERT_FILE", certPath)
 
-	source, err := url.Parse("https://localhost/media")
+	if len(cert.DNSNames) == 0 {
+		t.Fatal("test TLS certificate has no DNS subject")
+	}
+	source, err := url.Parse("https://" + cert.DNSNames[0] + "/media")
 	if err != nil {
 		t.Fatal(err)
 	}
