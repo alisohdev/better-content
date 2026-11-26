@@ -89,7 +89,8 @@ Each media attempt uses a private scratch directory named by its claim token.
 Normal completion, failure, and cancellation remove that directory. On startup,
 during reconciliation, and hourly between jobs, the worker reaps directories
 that are over an hour old and have no live lease. Keep the scratch directory
-on worker-controlled storage.
+on worker-controlled storage. The development filesystem adapter applies the
+same cleanup to temporary publication files on the private storage volume.
 
 The application runners log safe job IDs, types, attempts and failure
 categories. Reconciliation is a durable job handler that uses bounded storage

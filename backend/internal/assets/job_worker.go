@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"path"
 	"time"
 
 	"bettercontent/backend/internal/workspace"
@@ -78,7 +79,7 @@ func (w *assetWorker) preflight(ctx context.Context) error {
 		return errors.New("worker PostgreSQL job schema is unavailable")
 	}
 	rows.Close()
-	if err := reapWorkerScratch(ctx, w.database, w.tempDir, time.Now()); err != nil {
+	if err := w.reapScratch(ctx, time.Now()); err != nil {
 		return errors.New("could not clean Asset worker scratch directory")
 	}
 	if _, err := w.storage.listManagedObjects(ctx, permanentNamespace, "", 1); err != nil {
@@ -92,7 +93,7 @@ func (w *assetWorker) run(ctx context.Context) {
 	for ctx.Err() == nil {
 		if time.Now().After(nextScratchSweep) {
 			sweepCtx, cancel := context.WithTimeout(ctx, assetJobDatabaseTimeout)
-			err := reapWorkerScratch(sweepCtx, w.database, w.tempDir, time.Now())
+			err := w.reapScratch(sweepCtx, time.Now())
 			cancel()
 			if err != nil && ctx.Err() == nil && w.logger != nil {
 				w.logger.WarnContext(ctx, "assets.temp_cleanup_deferred", "errorCategory", processingUnavailable)
@@ -196,17 +197,26 @@ func (w *assetWorker) handleJob(ctx context.Context, job *assetJob) (assetJobMut
 	}
 	switch job.kind {
 	case "PROCESS_UPLOAD", "INGEST_EXTERNAL_URL":
-		scratch, err := makeWorkerAttemptScratch(w.tempDir, job.owner)
+		scratch, err := makeWorkerAttemptScratch(w.tempDir, workerScratchFolder, job.owner)
 		if err != nil {
 			return nil, err
 		}
-		defer func() {
-			if err := os.RemoveAll(scratch); err != nil {
-				w.logJobResult(ctx, *job, "assets.temp_cleanup_deferred", processingUnavailable)
-			}
-		}()
+		defer w.removeAttemptScratch(ctx, *job, scratch)
 		attempt := *w
 		attempt.tempDir = scratch
+		if storage, ok := w.storage.(*filesystemStorage); ok {
+			// Hard-link publication needs temp files on the storage volume.
+			publication, err := makeWorkerAttemptScratch(storage.root.Name(), workerPublicationScratchFolder, job.owner)
+			if err != nil {
+				return nil, err
+			}
+			defer w.removeAttemptScratch(ctx, *job, publication)
+			attemptStorage := *storage
+			attemptStorage.publicationTempDir = path.Join(workerPublicationScratchFolder, workerScratchPrefix+job.owner)
+			attemptService := *w.Service
+			attemptService.storage = &attemptStorage
+			attempt.Service = &attemptService
+		}
 		return attempt.processMedia(ctx, job)
 	case "DELETE_ASSET":
 		return w.prepareDeletionCleanup(ctx, job.assetID)
@@ -275,7 +285,7 @@ func (w *assetWorker) expireUpload(ctx context.Context, job assetJob) error {
 }
 
 func (w *assetWorker) reconcileStorage(ctx context.Context) error {
-	if err := reapWorkerScratch(ctx, w.database, w.tempDir, time.Now()); err != nil {
+	if err := w.reapScratch(ctx, time.Now()); err != nil {
 		return err
 	}
 	// Use bounded pages and the same overall attempt deadline as media jobs.

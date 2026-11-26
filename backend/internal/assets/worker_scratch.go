@@ -12,13 +12,14 @@ import (
 )
 
 const (
-	workerScratchFolder = "better-content-asset-worker"
-	workerScratchPrefix = "attempt-"
-	workerScratchMaxAge = time.Hour
+	workerScratchFolder            = "better-content-asset-worker"
+	workerPublicationScratchFolder = "better-content-asset-publication"
+	workerScratchPrefix            = "attempt-"
+	workerScratchMaxAge            = time.Hour
 )
 
-func openWorkerScratch(base string) (*os.Root, error) {
-	directory := filepath.Join(base, workerScratchFolder)
+func openWorkerScratch(base, folder string) (*os.Root, error) {
+	directory := filepath.Join(base, folder)
 	if err := os.Mkdir(directory, 0700); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
 	}
@@ -32,11 +33,11 @@ func openWorkerScratch(base string) (*os.Root, error) {
 	return os.OpenRoot(directory)
 }
 
-func makeWorkerAttemptScratch(base, owner string) (string, error) {
+func makeWorkerAttemptScratch(base, folder, owner string) (string, error) {
 	if !validJobAssetID(owner) {
 		return "", errAssetJobLeaseLost
 	}
-	root, err := openWorkerScratch(base)
+	root, err := openWorkerScratch(base, folder)
 	if err != nil {
 		return "", err
 	}
@@ -52,8 +53,8 @@ func makeWorkerAttemptScratch(base, owner string) (string, error) {
 // worker-owned directories older than an hour, including when different
 // workers share the same host temp disk. Root-relative deletion never follows
 // links outside the scratch directory.
-func reapWorkerScratch(ctx context.Context, db *sql.DB, base string, now time.Time) error {
-	root, err := openWorkerScratch(base)
+func reapWorkerScratch(ctx context.Context, db *sql.DB, base, folder string, now time.Time) error {
+	root, err := openWorkerScratch(base, folder)
 	if err != nil {
 		return err
 	}
@@ -105,5 +106,21 @@ func reapWorkerScratch(ctx context.Context, db *sql.DB, base string, now time.Ti
 		if readErr != nil {
 			return readErr
 		}
+	}
+}
+
+func (w *assetWorker) reapScratch(ctx context.Context, now time.Time) error {
+	if err := reapWorkerScratch(ctx, w.database, w.tempDir, workerScratchFolder, now); err != nil {
+		return err
+	}
+	if storage, ok := w.storage.(*filesystemStorage); ok {
+		return reapWorkerScratch(ctx, w.database, storage.root.Name(), workerPublicationScratchFolder, now)
+	}
+	return nil
+}
+
+func (w *assetWorker) removeAttemptScratch(ctx context.Context, job assetJob, directory string) {
+	if err := os.RemoveAll(directory); err != nil {
+		w.logJobResult(ctx, job, "assets.temp_cleanup_deferred", processingUnavailable)
 	}
 }

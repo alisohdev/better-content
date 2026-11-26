@@ -15,17 +15,17 @@ import (
 func TestWorkerScratchReapsOnlyOldAttemptDirectories(t *testing.T) {
 	db := openAssetTestDatabase(t)
 	base := t.TempDir()
-	old, err := makeWorkerAttemptScratch(base, uuid.NewString())
+	old, err := makeWorkerAttemptScratch(base, workerScratchFolder, uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
-	active, err := makeWorkerAttemptScratch(base, uuid.NewString())
+	active, err := makeWorkerAttemptScratch(base, workerScratchFolder, uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
 	jobID := addWorkerJob(t, db, "RECONCILE_STORAGE", uuid.NewString(), 5)
 	job := claimWorkerFixture(t, db, jobID)
-	oldButLeased, err := makeWorkerAttemptScratch(base, job.owner)
+	oldButLeased, err := makeWorkerAttemptScratch(base, workerScratchFolder, job.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestWorkerScratchReapsOnlyOldAttemptDirectories(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := reapWorkerScratch(context.Background(), db, base, now); err != nil {
+	if err := reapWorkerScratch(context.Background(), db, base, workerScratchFolder, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
@@ -85,4 +85,27 @@ type cancelDuringRead struct{ cancel context.CancelFunc }
 func (r *cancelDuringRead) Read(buffer []byte) (int, error) {
 	r.cancel()
 	return copy(buffer, "partial download"), nil
+}
+
+func TestWorkerReapsFilesystemPublicationScratch(t *testing.T) {
+	db := openAssetTestDatabase(t)
+	storage := newWorkerTestStorage(t).(*filesystemStorage)
+	w := assetWorker{Service: newService(db, storage, nil, nil), tempDir: t.TempDir()}
+	now := time.Now()
+	old := filepath.Join(storage.root.Name(), workerPublicationScratchFolder, "attempt-"+uuid.NewString())
+	if err := os.MkdirAll(old, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(old, "partial-object"), []byte("temporary"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(old, now.Add(-2*time.Hour), now.Add(-2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.reapScratch(context.Background(), now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("abandoned publication scratch remains: %v", err)
+	}
 }

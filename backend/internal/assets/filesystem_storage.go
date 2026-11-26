@@ -22,10 +22,11 @@ import (
 const maxManagedStoragePage = 500
 
 type filesystemStorage struct {
-	root    *os.Root
-	baseURL string
-	secret  []byte
-	clock   func() time.Time
+	root               *os.Root
+	baseURL            string
+	secret             []byte
+	clock              func() time.Time
+	publicationTempDir string
 }
 
 // DevelopmentFilesystemStorage keeps the concrete adapter private while
@@ -206,6 +207,9 @@ func (s *filesystemStorage) putImmutable(ctx context.Context, key string, source
 		return storageUnavailable(err)
 	}
 	temporary := key + ".tmp-" + randomUUIDString()
+	if s.publicationTempDir != "" {
+		temporary = path.Join(s.publicationTempDir, path.Base(temporary))
+	}
 	file, err := s.root.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return storageUnavailable(err)
