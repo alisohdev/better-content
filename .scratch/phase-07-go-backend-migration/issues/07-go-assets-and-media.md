@@ -5,7 +5,7 @@ without changing the accepted Phase 6 contract.
 
 **Blocked by:** 02, 03.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Scope
 
@@ -45,3 +45,12 @@ without changing the accepted Phase 6 contract.
 - 2026-10-25: Expanded the provisional AV corpus to nine cases with Opus-in-Ogg rejection. Fixed the capture tool to retain ffprobe's normal nonzero exit for corrupt media, matching the legacy `INVALID_MEDIA` category. Go fixture and signature-boundary tests pass.
 
 - 2026-10-25: Removed the Opus-in-Ogg fixture after repeated capture showed FFmpeg changed its stream serial number and fixture hash. Existing Go tests cover unsupported-codec normalization. The deterministic AV corpus is back to eight cases, and two consecutive captures now match. Its 8.1.2 ffprobe baseline remains provisional.
+
+- 2026-11-26: Resolved the prerequisites for Ticket 08. Reused the Phase 7
+  comparison's checksum-verified Debian ffprobe package
+  `ffmpeg=7:7.1.5-0+deb13u1` and recorded Node results. Go matched all eight
+  real AV fixture results on that executable, including 1,045 ms for the MP3,
+  and all 23 image results. The 8.1.2 capture remains a deterministic parser
+  fixture. Fixed the Go image inspector's empty-filename handling for external
+  images. The Go S3 adapter passed the opt-in HTTPS contract on a disposable
+  private MinIO bucket. Production provider verification is a release step.

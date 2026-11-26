@@ -9,7 +9,17 @@ import (
 )
 
 func withInspectionTempFile(ctx context.Context, directory string, source io.Reader, byteLimit, expectedSize int64, inspect func(string) (mediaInspection, error)) (mediaInspection, error) {
-	if source == nil || inspect == nil || byteLimit <= 0 || expectedSize <= 0 {
+	if inspect == nil || expectedSize <= 0 {
+		return mediaInspection{}, imageInspectionFailure("INVALID_MEDIA", false, nil)
+	}
+	return withMediaTempFile(ctx, directory, source, byteLimit, expectedSize, func(path string, _ int64) (mediaInspection, error) {
+		return inspect(path)
+	})
+}
+
+// A zero expected size is used only to spool an acquisition of unknown length.
+func withMediaTempFile(ctx context.Context, directory string, source io.Reader, byteLimit, expectedSize int64, inspect func(string, int64) (mediaInspection, error)) (mediaInspection, error) {
+	if source == nil || byteLimit <= 0 {
 		return mediaInspection{}, imageInspectionFailure("INVALID_MEDIA", false, nil)
 	}
 	if expectedSize > byteLimit {
@@ -30,11 +40,12 @@ func withInspectionTempFile(ctx context.Context, directory string, source io.Rea
 	}
 	path := file.Name()
 	defer os.Remove(path)
+	defer file.Close()
 	if err := file.Chmod(0o600); err != nil {
 		_ = file.Close()
 		return mediaInspection{}, imageInspectionFailure("PROCESSING_UNAVAILABLE", true, err)
 	}
-	written, err := io.Copy(file, &io.LimitedReader{R: source, N: byteLimit + 1})
+	written, err := copyWithContext(ctx, file, &io.LimitedReader{R: source, N: byteLimit + 1})
 	if err != nil {
 		_ = file.Close()
 		return mediaInspection{}, imageInspectionFailure("PROCESSING_UNAVAILABLE", true, err)
@@ -43,12 +54,12 @@ func withInspectionTempFile(ctx context.Context, directory string, source io.Rea
 		_ = file.Close()
 		return mediaInspection{}, imageInspectionFailure("MEDIA_LIMIT_EXCEEDED", false, nil)
 	}
-	if written != expectedSize {
+	if written == 0 || expectedSize > 0 && written != expectedSize {
 		_ = file.Close()
 		return mediaInspection{}, imageInspectionFailure("INVALID_MEDIA", false, errors.New("managed object size changed"))
 	}
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() != expectedSize {
+	if err != nil || !info.Mode().IsRegular() || info.Size() != written {
 		_ = file.Close()
 		return mediaInspection{}, imageInspectionFailure("PROCESSING_UNAVAILABLE", true, err)
 	}
@@ -62,5 +73,5 @@ func withInspectionTempFile(ctx context.Context, directory string, source io.Rea
 	if err := ctx.Err(); err != nil {
 		return mediaInspection{}, imageInspectionFailure("PROCESSING_UNAVAILABLE", true, err)
 	}
-	return inspect(absolutePath)
+	return inspect(absolutePath, written)
 }

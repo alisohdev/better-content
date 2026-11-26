@@ -43,10 +43,10 @@ func TestFilesystemStorageUsesPrivateOpaqueKeysAndPublishesImmutableObjects(t *t
 		t.Fatalf("staging read = %q, %v", bytes, err)
 	}
 
-	if err := storage.copyStagingToPermanent(ctx, staging, permanent); err != nil {
+	if err := storage.putPermanentFromStream(ctx, permanent, strings.NewReader(string(bytes))); err != nil {
 		t.Fatal(err)
 	}
-	if err := storage.putPermanentFromStream(ctx, permanent, strings.NewReader("replacement")); err != nil {
+	if err := storage.putPermanentFromStream(ctx, permanent, strings.NewReader("replacement")); !errors.Is(err, errStorageObjectExists) {
 		t.Fatal(err)
 	}
 	reader, err = storage.openPermanentRead(ctx, permanent)

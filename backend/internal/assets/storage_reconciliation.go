@@ -26,6 +26,10 @@ type ReadyIntegrityResult struct {
 // ReconcileManagedObjectPage deletes only old objects that remain unowned at
 // both database checks. Listing is candidate discovery, never ownership proof.
 func (s *Service) ReconcileManagedObjectPage(ctx context.Context, namespace storageNamespace, cursor string, limit int, now time.Time) (ManagedObjectReconciliationResult, error) {
+	return s.reconcileManagedObjectPage(ctx, namespace, cursor, limit, now, nil)
+}
+
+func (s *Service) reconcileManagedObjectPage(ctx context.Context, namespace storageNamespace, cursor string, limit int, now time.Time, beforeDelete func(context.Context) error) (ManagedObjectReconciliationResult, error) {
 	if namespace != stagingNamespace && namespace != permanentNamespace {
 		return ManagedObjectReconciliationResult{}, errStorageInvalidKey
 	}
@@ -63,6 +67,11 @@ func (s *Service) ReconcileManagedObjectPage(ctx context.Context, namespace stor
 		if owned {
 			result.Retained++
 			continue
+		}
+		if beforeDelete != nil {
+			if err := beforeDelete(ctx); err != nil {
+				return result, err
+			}
 		}
 		if namespace == stagingNamespace {
 			staging, _ := parseStagingKey(key)

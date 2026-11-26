@@ -27,3 +27,12 @@ fixtures. The ffmpeg build must include H.264, AAC, MP3, and PCM encoders. The
 Go test checks each fixture hash and compares Go normalization with the captured
 legacy result. Re-run the script with the approved runtime before treating this
 corpus as cutover evidence.
+
+The Phase 7 comparison recorded separate results from the legacy adapter
+using the checksum-verified Debian amd64 package `ffmpeg=7:7.1.5-0+deb13u1`.
+`TestPinnedFFprobeMatchesLegacyRuntime` uses those results with these same
+fixture bytes and runs the real Go adapter. To repeat the check on that
+runtime, set `ASSET_FFPROBE_PARITY_PATH` to its ffprobe executable and run
+`go -C backend test ./internal/assets -run '^TestPinnedFFprobeMatchesLegacyRuntime$' -count=1`.
+Both adapters report 1,045 ms for the MP3 on this build. The older 8.1.2
+manifest still records the corresponding 1,000 ms result.
