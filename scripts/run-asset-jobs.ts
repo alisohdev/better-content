@@ -16,6 +16,11 @@ import { DefaultMediaInspector, FfprobeMediaInspector } from "@/modules/assets/i
 import { createRuntimeAssetStorage } from "@/modules/assets/infrastructure/runtime-asset-storage";
 import { verifyAssetWorkerDeployment } from "@/modules/assets/infrastructure/asset-worker-preflight";
 
+const runtime = process.env.ASSET_WORKER_RUNTIME ?? "typescript";
+if (runtime !== "typescript") {
+  throw new Error("TypeScript Asset worker requires ASSET_WORKER_RUNTIME=typescript.");
+}
+
 const storage = createRuntimeAssetStorage();
 const inspector = new DefaultMediaInspector();
 const ffprobe = new FfprobeMediaInspector({

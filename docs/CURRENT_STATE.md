@@ -271,13 +271,11 @@ Extension 10 (Edit Guide).
 Not implemented: Automatic Media Discovery, Phase 7 Publishing, Phase 8 Social
 Connections, and Phase 9 Analytics.
 
-In progress: Phase 7 Go backend migration. Tickets 01–05 are resolved. Go now
-owns identity, sessions, Workspace authorization, Content DNA, AvalAI Idea
-generation, Ideas history/decisions/library, and production queue operations
-behind protected API routes. Ticket 06 moves Content generation and versioning;
-Tickets 07–10 cover Assets, worker execution, Next.js API integration, and
-coordinated cutover. The current Next.js runtime remains authoritative until
-that cutover.
+In progress: Phase 7 Go backend migration. Go implements identity, Workspace
+authorization, Content DNA, Ideas, the production queue, Content generation
+and versioning, Assets, and the durable Asset worker. Tickets 09 and 10 cover
+Next.js API integration and coordinated cutover. The current Next.js runtime
+remains authoritative until that cutover.
 
 ## Navigation
 

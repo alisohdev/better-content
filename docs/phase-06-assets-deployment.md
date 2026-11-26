@@ -63,6 +63,32 @@ error. A `SIGINT`/`SIGTERM` prevents new work and lets the current bounded
 attempt finish; PostgreSQL lease expiry remains the crash-recovery backstop.
 Temporary files are removed after every attempt.
 
+### Go worker cutover
+
+For Phase 7, build `backend/cmd/worker` and run the binary under a supervisor.
+For local development use `npm run backend:worker` with the same private storage
+and database settings as the Go API. Create the filesystem storage root first
+when using the filesystem driver. The Go entry point requires
+`ASSET_WORKER_RUNTIME=go`. The legacy scheduler requires `typescript` and
+defaults to that value. Treat this setting as shared deployment configuration
+for a database. Stop the legacy scheduler and wait for in-flight runs before
+enabling Go. To roll back worker ownership, drain Go before restarting the
+legacy scheduler.
+
+The Go process verifies the configured ffprobe version, writable temporary
+space with at least 1 GiB available, PostgreSQL with the migrated jobs table,
+and private storage listing before its first claim. It processes one job at a
+time and polls once per second when idle. Attempts use 60-second leases,
+renewed every 15 seconds, and a 10-minute processing deadline. On termination
+the worker stops claiming and keeps renewing the active lease during drain.
+Allow the active attempt to finish within its deadline plus database
+finalization and staging cleanup. If the process exits first, another worker
+recovers the job after lease expiry.
+
+The application runners log safe job IDs, types, attempts and failure
+categories. Reconciliation is a durable job handler that uses bounded storage
+pages and the same attempt deadline.
+
 ## Operations
 
 Send structured runner logs to the deployment's standard protected log sink;

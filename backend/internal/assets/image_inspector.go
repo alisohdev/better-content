@@ -76,7 +76,7 @@ func inspectImage(ctx context.Context, source io.Reader, declared mediaType, fil
 	if !ok {
 		return mediaInspection{}, imageInspectionFailure("UNSUPPORTED_MEDIA", false, nil)
 	}
-	if !hasCompatibleUploadExtension(leafFilename(filename), mediaImage) || !imageExtensionMatches(filename, imageFormat) {
+	if filename != "" && (!hasCompatibleUploadExtension(leafFilename(filename), mediaImage) || !imageExtensionMatches(filename, imageFormat)) {
 		return mediaInspection{}, imageInspectionFailure("MEDIA_TYPE_MISMATCH", false, nil)
 	}
 	if config.Width <= 0 || config.Height <= 0 {

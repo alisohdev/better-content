@@ -5,7 +5,7 @@ worker process without changing job semantics.
 
 **Blocked by:** 02, 07.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Scope
 
@@ -31,3 +31,14 @@ worker process without changing job semantics.
 - PostgreSQL integration tests for concurrent claims, heartbeats, fencing,
   stale recovery, retry timing, exhaustion, and shutdown/restart recovery.
 - Worker tests use deterministic storage and media seams; no E2E job matrix.
+
+## Comments
+
+- 2026-11-26: Implemented a supervised Go runner on the existing PostgreSQL
+  jobs table. Claims and stale recovery lock one due row at a time. Database
+  time and per-attempt ownership fence lease renewal, Asset writes, and job
+  completion. Added bounded retries, terminal crash recovery, one active
+  attempt per runner, and signal-driven drain. Registered all five job types
+  and verified them through PostgreSQL with deterministic media and storage
+  inputs. The Go entry point is opt-in and the coordinated switch and legacy
+  worker retirement are tracked in Ticket 10. No schema changes.
