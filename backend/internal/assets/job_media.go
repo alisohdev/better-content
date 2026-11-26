@@ -22,18 +22,18 @@ type workerRemoteAcquirer interface {
 }
 
 type processingAsset struct {
-	mediaType, sourceType, status string
-	sourceURL, filename, staging  sql.NullString
-	declared                      sql.NullInt64
+	mediaType, sourceType, status           string
+	sourceURL, filename, staging, permanent sql.NullString
+	declared                                sql.NullInt64
 }
 
 func (w *assetWorker) prepareMedia(ctx context.Context, job assetJob) (processingAsset, error) {
 	var asset processingAsset
 	err := withAssetJobLease(ctx, w.database, job, func(ctx context.Context, tx *sql.Tx) error {
 		err := tx.QueryRowContext(ctx, `
-  SELECT media_type,source_type,status,source_url,original_filename,staging_key,declared_byte_size
+  SELECT media_type,source_type,status,source_url,original_filename,staging_key,permanent_key,declared_byte_size
   FROM assets WHERE id=$1 FOR UPDATE
-  `, job.assetID).Scan(&asset.mediaType, &asset.sourceType, &asset.status, &asset.sourceURL, &asset.filename, &asset.staging, &asset.declared)
+  `, job.assetID).Scan(&asset.mediaType, &asset.sourceType, &asset.status, &asset.sourceURL, &asset.filename, &asset.staging, &asset.permanent, &asset.declared)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -76,15 +76,11 @@ func (w *assetWorker) processMedia(ctx context.Context, job *assetJob) (assetJob
 	}
 
 	var permanent permanentKey
+	var frozenStaging stagingKey
 	var stagedHash [sha256.Size]byte
 	staged, err := w.inspectManaged(ctx, staging.String(), declared, asset.filename.String, asset.declared.Int64,
 		func() (io.ReadCloser, error) { return w.storage.openStagingRead(ctx, staging) },
 		func(path string) error {
-			var err error
-			permanent, err = w.reservePermanent(ctx, *job)
-			if err != nil {
-				return err
-			}
 			file, err := os.Open(path)
 			if err != nil {
 				return err
@@ -97,7 +93,17 @@ func (w *assetWorker) processMedia(ctx context.Context, job *assetJob) (assetJob
 			if _, err := file.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
-			return w.storage.putPermanentFromStream(ctx, permanent, file)
+			permanent, frozenStaging, err = w.reservePermanent(ctx, *job, asset, staging, file)
+			if err != nil {
+				return err
+			}
+			err = w.storage.putPermanentFromStream(ctx, permanent, file)
+			if errors.Is(err, errStorageObjectExists) {
+				// A precondition failure means only that bytes already exist.
+				// The read below proves whether they belong to this snapshot.
+				return nil
+			}
+			return err
 		})
 	if err != nil {
 		return nil, err
@@ -132,12 +138,12 @@ func (w *assetWorker) processMedia(ctx context.Context, job *assetJob) (assetJob
   UPDATE assets SET status='READY',staging_key=NULL,byte_size=$4,detected_mime_type=$5,media_format=$6,
     width=NULLIF($7,0),height=NULLIF($8,0),duration_ms=NULLIF($9,0),codecs=NULLIF($10,''),updated_at=clock_timestamp()
   WHERE id=$1 AND status='PROCESSING' AND staging_key=$2 AND permanent_key=$3
-  `, job.assetID, staging.String(), permanent.String(), published.sizeBytes, published.mediaFormat.mimeType(),
+  `, job.assetID, frozenStaging.String(), permanent.String(), published.sizeBytes, published.mediaFormat.mimeType(),
 			published.mediaFormat.String(), published.width, published.height, published.durationMS, codecs)
 		if err := requireAssetJobUpdate(outcome, err); err != nil {
 			return err
 		}
-		job.cleanupStaging = sql.NullString{String: staging.String(), Valid: true}
+		job.cleanupStaging = sql.NullString{String: frozenStaging.String(), Valid: true}
 		return nil
 	}, nil
 }
@@ -184,22 +190,49 @@ func (w *assetWorker) acquireSnapshot(ctx context.Context, job assetJob, source 
 	return keyValue, sizeValue, err
 }
 
-func (w *assetWorker) reservePermanent(ctx context.Context, job assetJob) (permanentKey, error) {
+func (w *assetWorker) reservePermanent(ctx context.Context, job assetJob, asset processingAsset, staging stagingKey, inspected *os.File) (permanentKey, stagingKey, error) {
+	if asset.permanent.Valid {
+		key, err := parsePermanentKey(asset.permanent.String)
+		if err == nil {
+			err = withAssetJobLease(ctx, w.database, job, nil)
+		}
+		return key, staging, err
+	}
 	key, err := newPermanentKey()
 	if err != nil {
-		return key, err
+		return permanentKey{}, stagingKey{}, err
 	}
-	var reserved string
+	frozen := staging
+	if asset.sourceType == "UPLOAD" {
+		frozen, err = newStagingKey()
+		if err != nil {
+			return permanentKey{}, stagingKey{}, err
+		}
+		// A browser capability may still write its original staging key. Pin
+		// the inspected bytes at a private key before reserving publication.
+		if err := w.storage.putStagingFromStream(ctx, frozen, inspected); err != nil {
+			return permanentKey{}, stagingKey{}, err
+		}
+		if _, err := inspected.Seek(0, io.SeekStart); err != nil {
+			return permanentKey{}, stagingKey{}, err
+		}
+	}
 	err = withAssetJobLease(ctx, w.database, job, func(ctx context.Context, tx *sql.Tx) error {
-		return tx.QueryRowContext(ctx, `
-  UPDATE assets SET permanent_key=COALESCE(permanent_key,$2),updated_at=clock_timestamp()
-  WHERE id=$1 AND status='PROCESSING' RETURNING permanent_key
-  `, job.assetID, key.String()).Scan(&reserved)
+		outcome, err := tx.ExecContext(ctx, `
+			UPDATE assets SET permanent_key=$2,staging_key=$3,updated_at=clock_timestamp()
+			WHERE id=$1 AND status='PROCESSING' AND staging_key=$4 AND permanent_key IS NULL
+		`, job.assetID, key.String(), frozen.String(), staging.String())
+		return requireAssetJobUpdate(outcome, err)
 	})
 	if err != nil {
-		return permanentKey{}, err
+		// The reservation may have committed. Orphan reconciliation rechecks
+		// ownership before removing any unclaimed snapshot.
+		return permanentKey{}, stagingKey{}, err
 	}
-	return parsePermanentKey(reserved)
+	if frozen != staging {
+		w.removeJobStaging(ctx, job, staging)
+	}
+	return key, frozen, nil
 }
 
 func (w *assetWorker) inspectManaged(ctx context.Context, key string, declared mediaType, filename string, stagedSize int64,

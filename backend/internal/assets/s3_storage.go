@@ -150,7 +150,10 @@ func (s *s3Storage) putStagingFromStream(ctx context.Context, key stagingKey, so
 	if !key.valid() {
 		return errStorageInvalidKey
 	}
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key.String()), Body: source})
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key.String()), Body: source, IfNoneMatch: aws.String("*")})
+	if isS3Precondition(err) {
+		return errStorageObjectExists
+	}
 	if err != nil {
 		return storageUnavailable(err)
 	}
@@ -163,7 +166,7 @@ func (s *s3Storage) putPermanentFromStream(ctx context.Context, key permanentKey
 	}
 	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key.String()), Body: source, IfNoneMatch: aws.String("*")})
 	if isS3Precondition(err) {
-		return nil
+		return errStorageObjectExists
 	}
 	if err != nil {
 		return storageUnavailable(err)
@@ -178,7 +181,7 @@ func (s *s3Storage) copyStagingToPermanent(ctx context.Context, source stagingKe
 	copySource := s.bucket + "/" + strings.ReplaceAll(url.PathEscape(source.String()), "+", "%20")
 	_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(destination.String()), CopySource: aws.String(copySource), IfNoneMatch: aws.String("*")})
 	if isS3Precondition(err) {
-		return nil
+		return errStorageObjectExists
 	}
 	if isS3Missing(err) {
 		return errStorageNotFound

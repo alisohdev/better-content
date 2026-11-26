@@ -225,7 +225,7 @@ func (s *filesystemStorage) putImmutable(ctx context.Context, key string, source
 	}
 	if err := s.root.Link(temporary, key); err != nil {
 		if errors.Is(err, fs.ErrExist) && permanent {
-			return nil
+			return errStorageObjectExists
 		}
 		return storageUnavailable(err)
 	}

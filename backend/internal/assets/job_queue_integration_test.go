@@ -83,6 +83,17 @@ func TestAssetJobLeaseLifecycle(t *testing.T) {
 		t.Fatalf("expired lease renewed: %v", err)
 	}
 
+	expiredMutation := func(context.Context, *sql.Tx) error {
+		t.Error("expired lease reached the Asset mutation")
+		return nil
+	}
+	if err := finalizeAssetJob(ctx, db, first, nil, expiredMutation); !errors.Is(err, errAssetJobLeaseLost) {
+		t.Fatalf("expired completion: %v", err)
+	}
+	if err := finalizeAssetJob(ctx, db, first, &assetJobFailure{code: processingUnavailable}, nil); !errors.Is(err, errAssetJobLeaseLost) {
+		t.Fatalf("expired failure: %v", err)
+	}
+
 	second, err := claimAssetJob(ctx, db)
 	if err != nil || second == nil || second.id != id || second.attempts != 2 || second.owner == first.owner {
 		t.Fatalf("reclaim: %+v %v", second, err)

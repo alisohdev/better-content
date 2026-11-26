@@ -85,6 +85,12 @@ Allow the active attempt to finish within its deadline plus database
 finalization and staging cleanup. If the process exits first, another worker
 recovers the job after lease expiry.
 
+Each media attempt uses a private scratch directory named by its claim token.
+Normal completion, failure, and cancellation remove that directory. On startup,
+during reconciliation, and hourly between jobs, the worker reaps directories
+that are over an hour old and have no live lease. Keep the scratch directory
+on worker-controlled storage.
+
 The application runners log safe job IDs, types, attempts and failure
 categories. Reconciliation is a durable job handler that uses bounded storage
 pages and the same attempt deadline.

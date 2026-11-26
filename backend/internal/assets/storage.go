@@ -8,9 +8,10 @@ import (
 )
 
 var (
-	errStorageInvalidKey  = errors.New("invalid private storage key")
-	errStorageNotFound    = errors.New("private object not found")
-	errStorageUnavailable = errors.New("private storage unavailable")
+	errStorageInvalidKey   = errors.New("invalid private storage key")
+	errStorageObjectExists = errors.New("private object already exists")
+	errStorageNotFound     = errors.New("private object not found")
+	errStorageUnavailable  = errors.New("private storage unavailable")
 )
 
 type storedObjectMetadata struct {
@@ -48,6 +49,7 @@ type assetStorage interface {
 	getObjectMetadata(context.Context, string) (storedObjectMetadata, bool, error)
 	openStagingRead(context.Context, stagingKey) (io.ReadCloser, error)
 	putStagingFromStream(context.Context, stagingKey, io.Reader) error
+	// Conditional publication returns errStorageObjectExists without changing existing bytes.
 	putPermanentFromStream(context.Context, permanentKey, io.Reader) error
 	openPermanentRead(context.Context, permanentKey) (io.ReadCloser, error)
 	copyStagingToPermanent(context.Context, stagingKey, permanentKey) error

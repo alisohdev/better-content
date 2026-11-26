@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 
 	"sync"
 	"testing"
@@ -200,6 +201,10 @@ func TestAssetWorkerDrainsActiveAttemptAndLeavesNextForRestart(t *testing.T) {
 	waitWorkerChannel(t, done)
 	assertWorkerJobStatus(t, db, first, "FAILED", "UNSAFE_MEDIA_URL")
 	assertWorkerAssetFailure(t, db, assetID, "UNSAFE_MEDIA_URL")
+	scratch, err := os.ReadDir(filepath.Join(w.tempDir, workerScratchFolder))
+	if err != nil || len(scratch) != 0 {
+		t.Fatalf("drained job left temporary directories: %v", err)
+	}
 	assertWorkerJobStatus(t, db, next, "PENDING", "")
 	runWorkerFixture(t, &w, next)
 	assertWorkerJobStatus(t, db, next, "COMPLETED", "")

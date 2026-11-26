@@ -2,6 +2,7 @@ package assets
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -82,9 +83,13 @@ func TestS3AssetStorageLiveContract(t *testing.T) {
 	}
 	assertLiveMetadata(t, ctx, storage, snapshot.String(), int64(len(data)))
 
+	if err := storage.putPermanentFromStream(ctx, permanent, strings.NewReader(data)); err != nil {
+		t.Fatal("could not publish permanent object")
+	}
 	for _, body := range []string{data, "different"} {
-		if err := storage.putPermanentFromStream(ctx, permanent, strings.NewReader(body)); err != nil {
-			t.Fatal("could not publish permanent object")
+		err := storage.putPermanentFromStream(ctx, permanent, strings.NewReader(body))
+		if !errors.Is(err, errStorageObjectExists) {
+			t.Fatal("conditional permanent write did not report the conflict")
 		}
 	}
 	assertLiveMetadata(t, ctx, storage, permanent.String(), int64(len(data)))

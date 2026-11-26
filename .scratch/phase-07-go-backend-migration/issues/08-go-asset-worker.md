@@ -5,7 +5,7 @@ worker process without changing job semantics.
 
 **Blocked by:** 02, 07.
 
-**Status:** resolved
+**Status:** claimed
 
 ## Scope
 
@@ -42,3 +42,11 @@ worker process without changing job semantics.
   and verified them through PostgreSQL with deterministic media and storage
   inputs. The Go entry point is opt-in and the coordinated switch and legacy
   worker retirement are tracked in Ticket 10. No schema changes.
+
+- 2026-11-26: Added private upload snapshots before reserving publication, so
+  remaining browser upload capabilities cannot change bytes across attempts.
+  S3 and filesystem conditional-write conflicts require full byte and media
+  verification before READY. Worker-owned scratch directories are removed on
+  normal failure and cancellation, and crash leftovers are reclaimed only
+  after a grace period and a live-lease check. Grok's separate 13-section
+  checklist is pending receipt for the final acceptance review.

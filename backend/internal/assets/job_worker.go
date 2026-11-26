@@ -78,6 +78,9 @@ func (w *assetWorker) preflight(ctx context.Context) error {
 		return errors.New("worker PostgreSQL job schema is unavailable")
 	}
 	rows.Close()
+	if err := reapWorkerScratch(ctx, w.database, w.tempDir, time.Now()); err != nil {
+		return errors.New("could not clean Asset worker scratch directory")
+	}
 	if _, err := w.storage.listManagedObjects(ctx, permanentNamespace, "", 1); err != nil {
 		return errors.New("private managed storage is unavailable")
 	}
@@ -85,7 +88,17 @@ func (w *assetWorker) preflight(ctx context.Context) error {
 }
 
 func (w *assetWorker) run(ctx context.Context) {
+	nextScratchSweep := time.Now().Add(workerScratchMaxAge)
 	for ctx.Err() == nil {
+		if time.Now().After(nextScratchSweep) {
+			sweepCtx, cancel := context.WithTimeout(ctx, assetJobDatabaseTimeout)
+			err := reapWorkerScratch(sweepCtx, w.database, w.tempDir, time.Now())
+			cancel()
+			if err != nil && ctx.Err() == nil && w.logger != nil {
+				w.logger.WarnContext(ctx, "assets.temp_cleanup_deferred", "errorCategory", processingUnavailable)
+			}
+			nextScratchSweep = time.Now().Add(workerScratchMaxAge)
+		}
 		claimCtx, cancel := context.WithTimeout(ctx, assetJobDatabaseTimeout)
 		job, err := claimAssetJob(claimCtx, w.database)
 		cancel()
@@ -115,7 +128,7 @@ func (w *assetWorker) runAttempt(parent context.Context, job *assetJob) {
 	}
 	ctx, cancel := context.WithTimeout(parent, assetJobAttemptTimeout)
 	defer cancel()
-	heartbeatCtx, stopHeartbeat := context.WithCancel(parent)
+	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
 	heartbeatDone := make(chan error, 1)
 	lease := *job
 	go func() {
@@ -183,7 +196,18 @@ func (w *assetWorker) handleJob(ctx context.Context, job *assetJob) (assetJobMut
 	}
 	switch job.kind {
 	case "PROCESS_UPLOAD", "INGEST_EXTERNAL_URL":
-		return w.processMedia(ctx, job)
+		scratch, err := makeWorkerAttemptScratch(w.tempDir, job.owner)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			if err := os.RemoveAll(scratch); err != nil {
+				w.logJobResult(ctx, *job, "assets.temp_cleanup_deferred", processingUnavailable)
+			}
+		}()
+		attempt := *w
+		attempt.tempDir = scratch
+		return attempt.processMedia(ctx, job)
 	case "DELETE_ASSET":
 		return w.prepareDeletionCleanup(ctx, job.assetID)
 	case "EXPIRE_UPLOAD":
@@ -251,6 +275,9 @@ func (w *assetWorker) expireUpload(ctx context.Context, job assetJob) error {
 }
 
 func (w *assetWorker) reconcileStorage(ctx context.Context) error {
+	if err := reapWorkerScratch(ctx, w.database, w.tempDir, time.Now()); err != nil {
+		return err
+	}
 	// Use bounded pages and the same overall attempt deadline as media jobs.
 	const pageSize = 100
 	for _, namespace := range []storageNamespace{stagingNamespace, permanentNamespace} {
@@ -282,12 +309,17 @@ func (w *assetWorker) cleanupJobStaging(parent context.Context, job assetJob) {
 		return
 	}
 	key, err := parseStagingKey(job.cleanupStaging.String)
-	if err == nil {
-		ctx, cancel := context.WithTimeout(parent, assetJobDatabaseTimeout)
-		defer cancel()
-		err = deleteMissingStorageObject(func() error { return w.storage.deleteStagingObject(ctx, key) })
-	}
 	if err != nil {
+		w.logJobResult(parent, job, "assets.staging_cleanup_deferred", processingUnavailable)
+		return
+	}
+	w.removeJobStaging(parent, job, key)
+}
+
+func (w *assetWorker) removeJobStaging(parent context.Context, job assetJob, key stagingKey) {
+	ctx, cancel := context.WithTimeout(parent, assetJobDatabaseTimeout)
+	defer cancel()
+	if err := deleteMissingStorageObject(func() error { return w.storage.deleteStagingObject(ctx, key) }); err != nil {
 		w.logJobResult(parent, job, "assets.staging_cleanup_deferred", processingUnavailable)
 	}
 }
