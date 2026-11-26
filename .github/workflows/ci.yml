@@ -60,7 +60,7 @@ jobs:
       - run: npm run backend:test
       - run: go -C backend test -race ./...
       - name: Verify pinned Go HTTPS transport against real TLS
-        run: sudo -E go -C backend test ./internal/assets -run '^TestPinnedRemoteHTTPRequesterUsesPinnedIPAndVerifiesTLSHost$' -count=1
+        run: sudo env RUN_PRIVILEGED_TLS_TEST=1 go -C backend test ./internal/assets -run '^TestPinnedRemoteHTTPRequesterUsesPinnedIPAndVerifiesTLSHost$' -count=1
       - run: npm run backend:build
       - run: npm run build
       - run: npx playwright install --with-deps chromium

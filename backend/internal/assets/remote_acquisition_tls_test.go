@@ -23,6 +23,9 @@ func TestPinnedRemoteHTTPRequesterUsesPinnedIPAndVerifiesTLSHost(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("the pinned transport uses port 443; the regression runs in Linux CI")
 	}
+	if os.Getenv("RUN_PRIVILEGED_TLS_TEST") != "1" {
+		t.Skip("run with RUN_PRIVILEGED_TLS_TEST=1 to bind the production HTTPS port")
+	}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = io.WriteString(w, "tls-media")
