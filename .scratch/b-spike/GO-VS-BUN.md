@@ -91,13 +91,21 @@ Score 1 (poor) to 5 (strong). Weights follow the owner's order. Scores summarize
 | Performance evidence              |     5% |  2.5 |        3.5 |
 | Weighted total                    |   100% | 3.43 |       2.55 |
 
-The score is provisional because the Go/PostgreSQL integration suite and live infrastructure matrix were unavailable in this execution, and Go performance is unmeasured. It gives no credit to speculative Bun performance over Go.
+The score is provisional because the Go/PostgreSQL integration suite and live infrastructure matrix were unavailable in the original local execution, and Go performance is unmeasured. The corrected comparison PR runs the Go suite on PostgreSQL 18 in Actions and adds a real TLS regression for the production pinned requester. It gives no credit to speculative Bun performance over Go.
 
 ## Recommendation
 
 **Keep the existing Go backend and complete the worker before making a runtime migration decision.** Go currently has substantially more of the required product backend implemented and tested, including V4 drafts, acceptance, Teleprompter and Edit Guide. Bun + Hono would require extracting and wiring those product domains into a new API and implementing the worker while resolving the same SSRF, media, and operations gates.
 
-Retain Next.js during backend completion if it shortens launch. Decide React/Vite separately after measuring its integration and maintenance cost. Revisit the runtime choice after Go's real PostgreSQL suite, local TLS pinning, actual fixture media inspection, MinIO contract, and a repeated same-route benchmark are executable in an isolated environment.
+Retain Next.js during backend completion if it shortens launch. Decide React/Vite separately after measuring its integration and maintenance cost. Go's PostgreSQL and pinned TLS gates are being run by the corrected PR; no further Bun runtime research or comparative benchmark is needed to sequence the MVP work.
+
+## Remaining Go launch tasks
+
+1. **Asset worker (launch blocker; depends on the existing `asset_jobs` schema and asset application services):** implement bounded job claiming, leases and fencing, retry/backoff, cancellation, and graceful shutdown in `backend/cmd/worker` and the asset worker package. Acceptance: concurrent workers never execute the same active lease; expired leases can be reclaimed; stale workers cannot commit; retryable and terminal failures reach stable states; SIGTERM stops claims and drains in-flight work; Postgres integration tests cover the races.
+2. **Register required asset handlers (depends on worker lifecycle and existing services):** wire image/video/audio inspection, external URL ingestion, S3 persistence, deletion cleanup, and storage reconciliation. Acceptance: each persisted job type is executed end to end against disposable PostgreSQL and MinIO; bounded media inputs and failures produce the specified job state; cleanup and reconciliation are observable and idempotent.
+3. **Finish launch infrastructure proof (depends on CI and disposable services):** execute PostgreSQL integration tests on PostgreSQL 18 and S3 contract tests on disposable MinIO; execute the real TLS/IP-pinning test added with this comparison. Acceptance: required CI jobs pass on the published head commit and retain their raw logs/artifacts.
+4. **Frontend/API launch integration (independent of React/Vite choice):** connect the existing Next.js UI to the Go OpenAPI contract for auth/session, workspaces, DNA, ideas, V4 content, and asset upload/status. Acceptance: critical creator journeys pass E2E against disposable services with workspace authorization enforced.
+5. **Release operations (depends on MVP feature set):** define API/worker deployment, migrations, health/readiness, secrets, backups, and rollback for the selected hosting environment. Acceptance: a clean environment can deploy, migrate, start API and worker, pass health checks, and recover from a failed rollout without manual database repair.
 
 ## Evidence status and limits
 
