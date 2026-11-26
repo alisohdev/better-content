@@ -6,10 +6,9 @@ import (
 	"database/sql"
 	"errors"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
-
-	"sync"
 	"testing"
 	"time"
 
@@ -17,10 +16,26 @@ import (
 )
 
 func TestAssetWorkerProcessesAllJobTypes(t *testing.T) {
+	testAssetWorkerJobLifecycles(t, newWorkerTestStorage(t))
+}
+
+func TestAssetWorkerProcessesAllJobTypesOnLiveS3(t *testing.T) {
+	storage := liveS3WorkerStorage(t)
+	// Reconciliation runs against the whole bucket. Require an empty, isolated bucket.
+	for _, ns := range []storageNamespace{stagingNamespace, permanentNamespace} {
+		page, err := storage.listManagedObjects(context.Background(), ns, "", 1)
+		if err != nil || len(page.objects) != 0 || page.nextCursor != "" {
+			t.Fatal("worker lifecycle test requires an empty disposable bucket")
+		}
+	}
+	testAssetWorkerJobLifecycles(t, storage)
+}
+
+func testAssetWorkerJobLifecycles(t *testing.T, storage assetStorage) {
+	t.Helper()
 	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
 	ctx := context.Background()
-	storage := newWorkerTestStorage(t)
 	data, err := os.ReadFile("testdata/images/static-png.bin")
 	if err != nil {
 		t.Fatal(err)
@@ -42,6 +57,15 @@ func TestAssetWorkerProcessesAllJobTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	uploadJob := addWorkerJob(t, db, "PROCESS_UPLOAD", uploadID, 5)
+	expiration := addWorkerJob(t, db, "EXPIRE_UPLOAD", uploadID, 5)
+	if _, err := db.Exec("UPDATE asset_jobs SET scheduled_at='-infinity' WHERE id=$1", expiration); err != nil {
+		t.Fatal(err)
+	}
+	runWorkerFixture(t, &w, expiration)
+	assertWorkerJobStatus(t, db, expiration, "COMPLETED", "")
+	if _, exists, err := storage.getObjectMetadata(ctx, uploadKey.String()); err != nil || !exists {
+		t.Fatalf("expiration removed finalized upload bytes: %v %v", exists, err)
+	}
 	runWorkerFixture(t, &w, uploadJob)
 	assertWorkerJobStatus(t, db, uploadJob, "COMPLETED", "")
 	permanent := assertWorkerReady(t, db, uploadID, int64(len(data)))
@@ -67,7 +91,15 @@ func TestAssetWorkerProcessesAllJobTypes(t *testing.T) {
 	w.storage = storage
 	runWorkerFixture(t, &w, ingestJob)
 	assertWorkerJobStatus(t, db, ingestJob, "COMPLETED", "")
-	assertWorkerReady(t, db, ingestID, int64(len(data)))
+	ingestPermanent, err := parsePermanentKey(assertWorkerReady(t, db, ingestID, int64(len(data))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := storage.deletePermanentObject(context.Background(), ingestPermanent); err != nil {
+			t.Error(err)
+		}
+	})
 	if acquires != 1 {
 		t.Fatalf("acquisition called %d times, want once", acquires)
 	}
@@ -156,51 +188,30 @@ func TestAssetWorkerStaleMediaCannotCommitAndFinalCrashFailsAsset(t *testing.T) 
 	}
 }
 
-func TestAssetWorkerDrainsActiveAttemptAndLeavesNextForRestart(t *testing.T) {
+func TestAssetWorkerCancelsActiveAttemptAndLeavesNextForRestart(t *testing.T) {
 	db := openWorkerTestDatabase(t)
 	userID, workspaceID := createAssetWorkspace(t, db)
-	storage := newWorkerTestStorage(t)
-	started, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
-	var releaseOnce sync.Once
-	defer releaseOnce.Do(func() { close(release) })
+	started, cancelled, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	assetID, _ := seedWorkerAsset(t, db, userID, workspaceID, "EXTERNAL_URL", "PENDING", 0)
 	first := addWorkerJob(t, db, "INGEST_EXTERNAL_URL", assetID, 5)
 	w := assetWorker{
-		Service: newService(db, storage, time.Now, nil), tempDir: t.TempDir(), heartbeatInterval: 10 * time.Millisecond,
+		Service: newService(db, newWorkerTestStorage(t), time.Now, nil), tempDir: t.TempDir(), heartbeatInterval: 10 * time.Millisecond,
 		remote: workerTestAcquirer(func(ctx context.Context, _ string, _ string) (io.ReadCloser, error) {
 			close(started)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-release:
-				return nil, &RemoteAcquisitionError{FailureCode: "UNSAFE_MEDIA_URL"}
-			}
+			<-ctx.Done()
+			close(cancelled)
+			return nil, ctx.Err()
 		}),
 	}
 	go func() { defer close(done); w.run(ctx) }()
-	t.Cleanup(func() { stop(); releaseOnce.Do(func() { close(release) }); <-done })
 	waitWorkerChannel(t, started)
 	next := addWorkerJob(t, db, "RECONCILE_STORAGE", uuid.NewString(), 5)
 	stop()
-	var initial, latest time.Time
-	if err := db.QueryRow("SELECT lease_expires_at FROM asset_jobs WHERE id=$1", first).Scan(&initial); err != nil {
-		t.Fatal(err)
-	}
-	for deadline := time.Now().Add(5 * time.Second); !latest.After(initial); {
-		if time.Now().After(deadline) {
-			t.Fatal("heartbeat stopped during graceful drain")
-		}
-		if err := db.QueryRow("SELECT lease_expires_at FROM asset_jobs WHERE id=$1", first).Scan(&latest); err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	releaseOnce.Do(func() { close(release) })
+	waitWorkerChannel(t, cancelled)
 	waitWorkerChannel(t, done)
-	assertWorkerJobStatus(t, db, first, "FAILED", "UNSAFE_MEDIA_URL")
-	assertWorkerAssetFailure(t, db, assetID, "UNSAFE_MEDIA_URL")
+	assertWorkerJobStatus(t, db, first, "RUNNING", "")
 	scratch, err := os.ReadDir(filepath.Join(w.tempDir, workerScratchFolder))
 	if err != nil || len(scratch) != 0 {
 		t.Fatalf("drained job left temporary directories: %v", err)
@@ -208,6 +219,113 @@ func TestAssetWorkerDrainsActiveAttemptAndLeavesNextForRestart(t *testing.T) {
 	assertWorkerJobStatus(t, db, next, "PENDING", "")
 	runWorkerFixture(t, &w, next)
 	assertWorkerJobStatus(t, db, next, "COMPLETED", "")
+	expireWorkerJob(t, db, first)
+	if job := claimWorkerFixture(t, db, first); job.attempts != 2 {
+		t.Fatalf("expected a second attempt after shutdown, got %d", job.attempts)
+	}
+}
+
+func TestAssetWorkerRejectsUnsafeAndInvalidRemoteMediaBeforeStorage(t *testing.T) {
+	db := openWorkerTestDatabase(t)
+	userID, workspaceID := createAssetWorkspace(t, db)
+	storage := &observeStagingWrites{assetStorage: newWorkerTestStorage(t)}
+	w := assetWorker{
+		Service: newService(db, storage, nil, nil), tempDir: t.TempDir(),
+		inspector: newMediaInspector("", "", nil), heartbeatInterval: assetJobHeartbeatInterval,
+	}
+	check := func(code string) {
+		t.Helper()
+		id, _ := seedWorkerAsset(t, db, userID, workspaceID, "EXTERNAL_URL", "PENDING", 0)
+		jobID := addWorkerJob(t, db, "INGEST_EXTERNAL_URL", id, 5)
+		runWorkerFixture(t, &w, jobID)
+		assertWorkerJobStatus(t, db, jobID, "FAILED", code)
+		assertWorkerAssetFailure(t, db, id, code)
+		if storage.writes != 0 {
+			t.Fatalf("rejected media attempted %d staging writes", storage.writes)
+		}
+		for _, ns := range []storageNamespace{stagingNamespace, permanentNamespace} {
+			page, err := storage.listManagedObjects(context.Background(), ns, "", 10)
+			if err != nil || len(page.objects) != 0 {
+				t.Fatalf("rejected media wrote an object: %v", err)
+			}
+		}
+	}
+	w.remote = newControlledRemoteAcquirer(remoteResolverFunc(func(context.Context, string) ([]netip.Addr, error) {
+		return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+	}), nil, defaultRemoteAcquisitionLimits)
+	check("UNSAFE_MEDIA_URL")
+	w.remote = workerTestAcquirer(func(context.Context, string, string) (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewBufferString("not an image")), nil
+	})
+	check("INVALID_MEDIA")
+}
+
+type observeStagingWrites struct {
+	assetStorage
+	writes int
+}
+
+func (s *observeStagingWrites) putStagingFromStream(ctx context.Context, key stagingKey, reader io.Reader) error {
+	s.writes++
+	return s.assetStorage.putStagingFromStream(ctx, key, reader)
+}
+
+func TestAssetWorkerRetriesHandlerPanic(t *testing.T) {
+	db := openWorkerTestDatabase(t)
+	userID, workspaceID := createAssetWorkspace(t, db)
+	id, _ := seedWorkerAsset(t, db, userID, workspaceID, "EXTERNAL_URL", "PENDING", 0)
+	jobID := addWorkerJob(t, db, "INGEST_EXTERNAL_URL", id, 2)
+	w := assetWorker{
+		Service: newService(db, newWorkerTestStorage(t), nil, nil), tempDir: t.TempDir(),
+		heartbeatInterval: assetJobHeartbeatInterval,
+		remote: workerTestAcquirer(func(context.Context, string, string) (io.ReadCloser, error) {
+			panic("test handler panic")
+		}),
+	}
+	runWorkerFixture(t, &w, jobID)
+	assertWorkerJobStatus(t, db, jobID, "PENDING", processingUnavailable)
+}
+
+func TestAssetWorkerChecksLeaseAfterDeletionMetadataRead(t *testing.T) {
+	db := openWorkerTestDatabase(t)
+	userID, workspaceID := createAssetWorkspace(t, db)
+	assetID := insertAttachmentFixture(t, db, workspaceID, userID, "IMAGE", "READY")
+	if _, err := db.Exec("UPDATE assets SET status='DELETING' WHERE id=$1", assetID); err != nil {
+		t.Fatal(err)
+	}
+	jobID := addWorkerJob(t, db, "DELETE_ASSET", assetID, 5)
+	job := claimWorkerFixture(t, db, jobID)
+	storage := &expireDuringDeletionRead{
+		deletionCleanupStorageFake: deletionCleanupStorageFake{metadataFound: true},
+		expire:                     func() { expireWorkerJob(t, db, jobID) },
+	}
+	w := assetWorker{Service: newService(db, storage, nil, nil)}
+	if _, err := w.handleJob(context.Background(), job); !errors.Is(err, errAssetJobLeaseLost) {
+		t.Fatalf("expired deletion returned %v", err)
+	}
+	if len(storage.deletedPermanent) != 0 {
+		t.Fatal("expired attempt deleted permanent bytes")
+	}
+	assertWorkerJobStatus(t, db, jobID, "RUNNING", "")
+}
+
+type expireDuringDeletionRead struct {
+	deletionCleanupStorageFake
+	expire func()
+}
+
+func (s *expireDuringDeletionRead) getObjectMetadata(ctx context.Context, key string) (storedObjectMetadata, bool, error) {
+	s.expire()
+	return s.deletionCleanupStorageFake.getObjectMetadata(ctx, key)
+}
+
+func TestAssetWorkerRetriesUnknownHandler(t *testing.T) {
+	w := assetWorker{}
+	_, err := w.handleJob(context.Background(), &assetJob{kind: "UNKNOWN", assetID: uuid.NewString()})
+	var failure *assetJobFailure
+	if !errors.As(err, &failure) || failure.code != processingUnavailable || !failure.retryable {
+		t.Fatalf("unknown handler returned %v", err)
+	}
 }
 
 func waitWorkerChannel(t *testing.T, ch <-chan struct{}) {

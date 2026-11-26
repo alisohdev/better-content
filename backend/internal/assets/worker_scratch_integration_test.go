@@ -34,7 +34,7 @@ func TestWorkerScratchReapsOnlyOldAttemptDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, dir := range []string{old, active, oldButLeased, unrelated} {
-		if err := os.WriteFile(filepath.Join(dir, "partial-media"), []byte("temporary"), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "better-content-asset-crashed.tmp"), []byte("temporary"), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -51,7 +51,7 @@ func TestWorkerScratchReapsOnlyOldAttemptDirectories(t *testing.T) {
 		t.Fatalf("old scratch remains: %v", err)
 	}
 	for _, dir := range []string{active, oldButLeased, unrelated} {
-		if _, err := os.Stat(filepath.Join(dir, "partial-media")); err != nil {
+		if _, err := os.Stat(filepath.Join(dir, "better-content-asset-crashed.tmp")); err != nil {
 			t.Fatal(err)
 		}
 	}

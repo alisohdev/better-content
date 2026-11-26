@@ -40,6 +40,7 @@ func withMediaTempFile(ctx context.Context, directory string, source io.Reader, 
 	}
 	path := file.Name()
 	defer os.Remove(path)
+	defer file.Close()
 	if err := file.Chmod(0o600); err != nil {
 		_ = file.Close()
 		return mediaInspection{}, imageInspectionFailure("PROCESSING_UNAVAILABLE", true, err)

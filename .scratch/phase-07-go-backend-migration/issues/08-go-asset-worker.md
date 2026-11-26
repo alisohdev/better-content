@@ -48,5 +48,23 @@ worker process without changing job semantics.
   S3 and filesystem conditional-write conflicts require full byte and media
   verification before READY. Worker-owned scratch directories are removed on
   normal failure and cancellation, and crash leftovers are reclaimed only
-  after a grace period and a live-lease check. Grok's separate 13-section
-  checklist is pending receipt for the final acceptance review.
+  after a grace period and a live-lease check.
+
+
+## Acceptance review
+
+| Section | Evidence |
+| --- | --- |
+| 1. Atomic claim | One ordered, bounded `UPDATE ... FROM` statement with `FOR UPDATE SKIP LOCKED`. |
+| 2. Concurrent workers | PostgreSQL tests race two claims for one job and enforce exclusive ownership. |
+| 3. Lease renewal | The lease test checks renewal and rejects expired tokens. |
+| 4. Stale-worker fencing | PostgreSQL tests reject stale completion, failure, READY updates, and deletion after a lease expires during storage metadata lookup. |
+| 5. Crash recovery | Lease expiry reclaims the attempt with a fresh token. Exhaustion atomically fails the job and its active Asset. |
+| 6. Retries | PostgreSQL tests cover timed retry, exhaustion, panic recovery, and terminal failure. Unknown handlers return a retryable failure. The schema restricts payloads to an Asset UUID. |
+| 7. S3 idempotency | Conditional PUT and read-back protect published bytes and reuse the reserved key. MinIO accepted a second conditional CopyObject, so the unused server-side copy path was removed. Missing staging data fails, and absent-object deletion succeeds. |
+| 8. Lifecycle | The opt-in PostgreSQL and MinIO test executes all five handlers, including finalized-upload expiry protection. |
+| 9. SSRF | A real PostgreSQL worker run rejects a prohibited DNS result before dialing and records zero staging writes. The existing pinned-transport test covers real TLS. |
+| 10. Media | The existing 23-image and eight audio/video fixtures exercise the approved inspector rules and the pinned Debian ffprobe runtime. Remote bytes must pass inspection before storage. |
+| 11. Temporary files | Tests cover permissions on Linux, limit plus one, cleanup during cancellation, and an aged crash-left inspection file. |
+| 12. Shutdown | Cancellation reaches the handler, stops claims, bounds drain, and leaves unfinished work for lease recovery. |
+| 13. Executed evidence | The PostgreSQL suite and opt-in MinIO contract ran against disposable services. PR #5 carries the results. |

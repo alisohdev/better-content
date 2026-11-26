@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-func TestS3AssetStorageLiveContract(t *testing.T) {
+func liveS3WorkerStorage(t *testing.T) *s3Storage {
+	t.Helper()
 	if os.Getenv("ASSET_STORAGE_LIVE_CONTRACT") != "1" {
 		t.Skip("S3-compatible storage contract is opt-in")
 	}
@@ -27,7 +28,11 @@ func TestS3AssetStorageLiveContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage := adapter.storage
+	return adapter.storage
+}
+
+func TestS3AssetStorageLiveContract(t *testing.T) {
+	storage := liveS3WorkerStorage(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	staging, err := newStagingKey()
@@ -101,6 +106,13 @@ func TestS3AssetStorageLiveContract(t *testing.T) {
 	}
 	assertStorageHTTP(t, ctx, http.MethodGet, preview, "", "", http.StatusOK, data)
 	assertStorageHTTP(t, ctx, http.MethodGet, preview, "", "bytes=0-7", http.StatusPartialContent, data[:8])
+	missing, err := newStagingKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := storage.openStagingRead(ctx, missing); !errors.Is(err, errStorageNotFound) {
+		t.Fatalf("opening missing staging object returned %v", err)
+	}
 	page, err := storage.listManagedObjects(ctx, permanentNamespace, "", 100)
 	if err != nil {
 		t.Fatal("could not list permanent objects")

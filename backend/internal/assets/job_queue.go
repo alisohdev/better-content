@@ -43,44 +43,42 @@ func claimAssetJob(ctx context.Context, db *sql.DB) (*assetJob, error) {
 		return nil, err
 	}
 	defer tx.Rollback()
+	owner, err := uuid.NewRandom()
+	if err != nil {
+		return nil, err
+	}
 	var job assetJob
 	err = tx.QueryRowContext(ctx, `
- SELECT id::text, type, payload->>'assetId', attempts, max_attempts
- FROM asset_jobs
- WHERE (status='PENDING' AND scheduled_at <= statement_timestamp())
-    OR (status='RUNNING' AND lease_expires_at <= statement_timestamp())
- ORDER BY scheduled_at, created_at, id
- LIMIT 1 FOR UPDATE SKIP LOCKED
- `).Scan(&job.id, &job.kind, &job.assetID, &job.attempts, &job.maxAttempts)
+		WITH candidate AS (
+			SELECT id, attempts >= max_attempts AS exhausted
+			FROM asset_jobs
+			WHERE (status='PENDING' AND scheduled_at <= statement_timestamp())
+			   OR (status='RUNNING' AND lease_expires_at <= statement_timestamp())
+			ORDER BY scheduled_at, created_at, id
+			LIMIT 1 FOR UPDATE SKIP LOCKED
+		), claim_time AS (SELECT clock_timestamp() AS at)
+		UPDATE asset_jobs AS job SET
+			status=CASE WHEN candidate.exhausted THEN 'FAILED' ELSE 'RUNNING' END,
+			attempts=job.attempts+CASE WHEN candidate.exhausted THEN 0 ELSE 1 END,
+			lease_owner=CASE WHEN NOT candidate.exhausted THEN $1::text END,
+			lease_expires_at=CASE WHEN NOT candidate.exhausted THEN claim_time.at+$2*interval '1 millisecond' END,
+			failure_code=CASE WHEN candidate.exhausted THEN $3::text END,
+			failed_at=CASE WHEN candidate.exhausted THEN claim_time.at END,
+			updated_at=claim_time.at
+		FROM candidate CROSS JOIN claim_time
+		WHERE job.id=candidate.id
+		RETURNING job.id, job.type, job.payload->>'assetId', job.attempts, job.max_attempts,
+			COALESCE(job.lease_owner,''), candidate.exhausted
+	`, owner.String(), assetJobLease.Milliseconds(), processingUnavailable).
+		Scan(&job.id, &job.kind, &job.assetID, &job.attempts, &job.maxAttempts, &job.owner, &job.exhausted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-
-	if job.attempts >= job.maxAttempts {
-		job.exhausted = true
+	if job.exhausted {
 		if err := failMediaAsset(ctx, tx, &job, processingUnavailable); err != nil {
-			return nil, err
-		}
-		if err := recordAssetJobResult(ctx, tx, job, &assetJobFailure{code: processingUnavailable}); err != nil {
-			return nil, err
-		}
-	} else {
-		owner, err := uuid.NewRandom()
-		if err != nil {
-			return nil, err
-		}
-		job.owner = owner.String()
-		job.attempts++
-		_, err = tx.ExecContext(ctx, `
-  WITH now AS (SELECT clock_timestamp() AS at)
-  UPDATE asset_jobs SET status='RUNNING', attempts=$2, lease_owner=$3,
-    lease_expires_at=now.at+$4*interval '1 millisecond', failure_code=NULL, updated_at=now.at
-  FROM now WHERE id=$1
-  `, job.id, job.attempts, job.owner, assetJobLease.Milliseconds())
-		if err != nil {
 			return nil, err
 		}
 	}
@@ -221,8 +219,8 @@ func recordAssetJobResult(ctx context.Context, tx *sql.Tx, job assetJob, failure
     scheduled_at=CASE WHEN $2='PENDING' THEN now.at+$4*interval '1 millisecond' ELSE scheduled_at END,
     completed_at=CASE WHEN $2='COMPLETED' THEN now.at END,
     failed_at=CASE WHEN $2='FAILED' THEN now.at END, updated_at=now.at
- FROM now WHERE id=$1 AND ($5 OR lease_expires_at > now.at)
- `, job.id, status, code, backoff.Milliseconds(), job.exhausted)
+ FROM now WHERE id=$1 AND lease_expires_at > now.at
+ `, job.id, status, code, backoff.Milliseconds())
 
 	if err != nil {
 		return err

@@ -80,10 +80,9 @@ space with at least 1 GiB available, PostgreSQL with the migrated jobs table,
 and private storage listing before its first claim. It processes one job at a
 time and polls once per second when idle. Attempts use 60-second leases,
 renewed every 15 seconds, and a 10-minute processing deadline. On termination
-the worker stops claiming and keeps renewing the active lease during drain.
-Allow the active attempt to finish within its deadline plus database
-finalization and staging cleanup. If the process exits first, another worker
-recovers the job after lease expiry.
+the worker stops claiming, cancels the active attempt, and waits up to ten
+seconds for cleanup. Another worker can reclaim cancelled work after its
+lease expires.
 
 Each media attempt uses a private scratch directory named by its claim token.
 Normal completion, failure, and cancellation remove that directory. On startup,
@@ -95,6 +94,12 @@ same cleanup to temporary publication files on the private storage volume.
 The application runners log safe job IDs, types, attempts and failure
 categories. Reconciliation is a durable job handler that uses bounded storage
 pages and the same attempt deadline.
+
+The worker publishes verified local bytes with conditional S3 `PutObject`.
+The MinIO contract test reproduced a replay where `CopyObject` accepted a
+destination that already existed despite `If-None-Match: *`. Keep worker
+publication on conditional `PutObject`, then read and verify the stored bytes
+before marking an Asset READY.
 
 ## Operations
 

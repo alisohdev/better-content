@@ -17,6 +17,7 @@ const (
 	assetJobHeartbeatInterval = 15 * time.Second
 	assetJobDatabaseTimeout   = 5 * time.Second
 	assetJobAttemptTimeout    = 10 * time.Minute
+	assetJobDrainTimeout      = 10 * time.Second
 	assetWorkerMinTempBytes   = 1 << 30
 )
 
@@ -107,9 +108,7 @@ func (w *assetWorker) run(ctx context.Context) {
 			w.logger.WarnContext(ctx, "assets.job_claim_failed", "errorCategory", processingUnavailable)
 		}
 		if job != nil {
-			// A signal stops new claims. A committed attempt keeps its deadline and
-			// renewals during drain, including when shutdown races the claim commit.
-			w.runAttempt(context.WithoutCancel(ctx), job)
+			w.runUntilShutdown(ctx, job)
 			continue
 		}
 		timer := time.NewTimer(assetJobPollInterval)
@@ -118,6 +117,27 @@ func (w *assetWorker) run(ctx context.Context) {
 		case <-timer.C:
 		}
 		timer.Stop()
+	}
+}
+
+func (w *assetWorker) runUntilShutdown(ctx context.Context, job *assetJob) {
+	done := make(chan struct{})
+	logJob := *job
+	go func() {
+		defer close(done)
+		w.runAttempt(ctx, job)
+	}()
+	select {
+	case <-done:
+		return
+	case <-ctx.Done():
+	}
+	timer := time.NewTimer(assetJobDrainTimeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		w.logJobResult(ctx, logJob, "assets.worker_drain_timed_out", processingUnavailable)
 	}
 }
 
@@ -136,9 +156,12 @@ func (w *assetWorker) runAttempt(parent context.Context, job *assetJob) {
 		heartbeatDone <- w.maintainLease(heartbeatCtx, lease, cancel)
 	}()
 
-	mutation, err := w.handleJob(ctx, job)
+	mutation, err := w.invokeHandler(ctx, job)
 	stopHeartbeat()
 	heartbeatErr := <-heartbeatDone
+	if parent.Err() != nil {
+		return
+	}
 	if heartbeatErr != nil || errors.Is(err, errAssetJobLeaseLost) {
 		w.logJobResult(parent, *job, "assets.job_lease_lost", processingUnavailable)
 		return
@@ -191,6 +214,17 @@ func (w *assetWorker) maintainLease(ctx context.Context, job assetJob, cancelAtt
 	}
 }
 
+func (w *assetWorker) invokeHandler(ctx context.Context, job *assetJob) (mutation assetJobMutation, err error) {
+	defer func() {
+		if recover() != nil {
+			mutation = nil
+			err = &assetJobFailure{code: processingUnavailable, retryable: true}
+			w.logJobResult(ctx, *job, "assets.job_handler_panicked", processingUnavailable)
+		}
+	}()
+	return w.handleJob(ctx, job)
+}
+
 func (w *assetWorker) handleJob(ctx context.Context, job *assetJob) (assetJobMutation, error) {
 	if !validJobAssetID(job.assetID) {
 		return nil, &assetJobFailure{code: "INVALID_MEDIA"}
@@ -219,13 +253,13 @@ func (w *assetWorker) handleJob(ctx context.Context, job *assetJob) (assetJobMut
 		}
 		return attempt.processMedia(ctx, job)
 	case "DELETE_ASSET":
-		return w.prepareDeletionCleanup(ctx, job.assetID)
+		return w.prepareDeletionCleanup(ctx, job.assetID, w.renewBeforeDelete(*job))
 	case "EXPIRE_UPLOAD":
 		return nil, w.expireUpload(ctx, *job)
 	case "RECONCILE_STORAGE":
-		return nil, w.reconcileStorage(ctx)
+		return nil, w.reconcileStorage(ctx, *job)
 	default:
-		return nil, &assetJobFailure{code: processingUnavailable}
+		return nil, &assetJobFailure{code: processingUnavailable, retryable: true}
 	}
 }
 
@@ -281,10 +315,21 @@ func (w *assetWorker) expireUpload(ctx context.Context, job assetJob) error {
 	if err != nil {
 		return err
 	}
+	if err := w.renewBeforeDelete(job)(ctx); err != nil {
+		return err
+	}
 	return deleteMissingStorageObject(func() error { return w.storage.deleteStagingObject(ctx, key) })
 }
 
-func (w *assetWorker) reconcileStorage(ctx context.Context) error {
+func (w *assetWorker) renewBeforeDelete(job assetJob) func(context.Context) error {
+	return func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, assetJobDatabaseTimeout)
+		defer cancel()
+		return withAssetJobLease(ctx, w.database, job, nil)
+	}
+}
+
+func (w *assetWorker) reconcileStorage(ctx context.Context, job assetJob) error {
 	if err := w.reapScratch(ctx, time.Now()); err != nil {
 		return err
 	}
@@ -292,7 +337,7 @@ func (w *assetWorker) reconcileStorage(ctx context.Context) error {
 	const pageSize = 100
 	for _, namespace := range []storageNamespace{stagingNamespace, permanentNamespace} {
 		for cursor := ""; ; {
-			result, err := w.ReconcileManagedObjectPage(ctx, namespace, cursor, pageSize, time.Time{})
+			result, err := w.reconcileManagedObjectPage(ctx, namespace, cursor, pageSize, time.Time{}, w.renewBeforeDelete(job))
 			if err != nil {
 				return err
 			}

@@ -236,15 +236,6 @@ func (s *filesystemStorage) putImmutable(ctx context.Context, key string, source
 	return nil
 }
 
-func (s *filesystemStorage) copyStagingToPermanent(ctx context.Context, source stagingKey, destination permanentKey) error {
-	reader, err := s.openStagingRead(ctx, source)
-	if err != nil {
-		return err
-	}
-	defer reader.Close()
-	return s.putPermanentFromStream(ctx, destination, reader)
-}
-
 func (s *filesystemStorage) deleteStagingObject(ctx context.Context, key stagingKey) error {
 	return s.deleteObject(ctx, key.String())
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -17,6 +18,12 @@ func TestWithInspectionTempFileBoundsBytesAndCleansUp(t *testing.T) {
 		path = filePath
 		if !filepath.IsAbs(filePath) {
 			t.Fatalf("inspection path is not absolute: %q", filePath)
+		}
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(filePath)
+			if err != nil || info.Mode().Perm() != 0600 {
+				t.Fatalf("inspection file does not have mode 0600: %v", err)
+			}
 		}
 		contents, readErr := os.ReadFile(filePath)
 		if readErr != nil || string(contents) != "safe" {
@@ -44,6 +51,13 @@ func TestWithInspectionTempFileRejectsOversizeAndSizeMismatch(t *testing.T) {
 	}
 	if _, err := withInspectionTempFile(context.Background(), t.TempDir(), bytes.NewReader([]byte("short")), 8, 4, inspect); mustInspectionFailureCode(t, err) != "INVALID_MEDIA" {
 		t.Fatalf("size mismatch error = %v", err)
+	}
+	remote := bytes.NewReader([]byte("123456789"))
+	if _, err := withMediaTempFile(context.Background(), t.TempDir(), remote, 4, 0, func(string, int64) (mediaInspection, error) {
+		t.Error("oversize remote data reached inspection")
+		return mediaInspection{}, nil
+	}); mustInspectionFailureCode(t, err) != "MEDIA_LIMIT_EXCEEDED" || remote.Len() != 4 {
+		t.Fatalf("expected limit plus one bytes consumed, remaining=%d, error=%v", remote.Len(), err)
 	}
 	if inspectCalls != 0 {
 		t.Fatalf("inspector called %d times for rejected temp objects", inspectCalls)

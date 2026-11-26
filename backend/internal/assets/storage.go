@@ -52,7 +52,6 @@ type assetStorage interface {
 	// Conditional publication returns errStorageObjectExists without changing existing bytes.
 	putPermanentFromStream(context.Context, permanentKey, io.Reader) error
 	openPermanentRead(context.Context, permanentKey) (io.ReadCloser, error)
-	copyStagingToPermanent(context.Context, stagingKey, permanentKey) error
 	deleteStagingObject(context.Context, stagingKey) error
 	deletePermanentObject(context.Context, permanentKey) error
 	createStagingPutCapability(stagingKey, time.Time, int64) (string, error)

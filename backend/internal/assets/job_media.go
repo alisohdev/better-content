@@ -164,6 +164,16 @@ func (w *assetWorker) acquireSnapshot(ctx context.Context, job assetJob, source 
 	// Spool a bounded, seekable body for storage adapters. An attempt-private
 	// key keeps uncommitted downloads separate from the next winning snapshot.
 	_, err = withMediaTempFile(ctx, w.tempDir, body, declared.maxUploadBytes(), 0, func(path string, size int64) (mediaInspection, error) {
+		result, err := w.inspector.inspect(ctx, path, declared, "", size)
+		if err != nil {
+			return mediaInspection{}, err
+		}
+		if result.mediaType != declared || result.mediaFormat.mimeType() == "" || result.sizeBytes != size {
+			return mediaInspection{}, &assetJobFailure{code: "INVALID_MEDIA"}
+		}
+		if err := withAssetJobLease(ctx, w.database, job, nil); err != nil {
+			return mediaInspection{}, err
+		}
 		file, err := os.Open(path)
 		if err != nil {
 			return mediaInspection{}, err

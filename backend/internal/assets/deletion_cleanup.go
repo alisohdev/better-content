@@ -21,7 +21,7 @@ type deletionCleanupAsset struct {
 // CleanupDeletedAsset removes private objects before deleting their lifecycle
 // row. The operation is safe to retry after interruption at either boundary.
 func (s *Service) CleanupDeletedAsset(ctx context.Context, assetIDText string) error {
-	finish, err := s.prepareDeletionCleanup(ctx, assetIDText)
+	finish, err := s.prepareDeletionCleanup(ctx, assetIDText, nil)
 	if err != nil || finish == nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func (s *Service) CleanupDeletedAsset(ctx context.Context, assetIDText string) e
 
 // Return the final metadata mutation so the worker can commit it under its
 // job lease in the same transaction as job completion.
-func (s *Service) prepareDeletionCleanup(ctx context.Context, assetIDText string) (assetJobMutation, error) {
+func (s *Service) prepareDeletionCleanup(ctx context.Context, assetIDText string, beforeDelete func(context.Context) error) (assetJobMutation, error) {
 	assetID, err := uuid.Parse(assetIDText)
 	if err != nil || assetID == uuid.Nil {
 		return nil, ErrAssetLibraryInvalid
@@ -68,6 +68,11 @@ func (s *Service) prepareDeletionCleanup(ctx context.Context, assetIDText string
 		if err != nil {
 			return nil, errors.New("Asset deletion has invalid staging key")
 		}
+		if beforeDelete != nil {
+			if err := beforeDelete(ctx); err != nil {
+				return nil, err
+			}
+		}
 		if err := deleteMissingStorageObject(func() error { return s.storage.deleteStagingObject(ctx, key) }); err != nil {
 			return nil, ErrStorageUnavailable
 		}
@@ -83,6 +88,11 @@ func (s *Service) prepareDeletionCleanup(ctx context.Context, assetIDText string
 		}
 		if !found && asset.deletingReady == 1 && s.logger != nil {
 			s.logger.WarnContext(ctx, "assets.ready_object_missing", "module", "assets", "operation", "deleteCleanup", "entityId", asset.id)
+		}
+		if beforeDelete != nil {
+			if err := beforeDelete(ctx); err != nil {
+				return nil, err
+			}
 		}
 		if err := deleteMissingStorageObject(func() error { return s.storage.deletePermanentObject(ctx, key) }); err != nil {
 			return nil, ErrStorageUnavailable

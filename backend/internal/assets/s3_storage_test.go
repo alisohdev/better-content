@@ -86,9 +86,6 @@ func TestS3StorageOperationsAndPresignedCapabilities(t *testing.T) {
 	if err := storage.putPermanentFromStream(ctx, permanent, strings.NewReader("permanent")); err != nil {
 		t.Fatal(err)
 	}
-	if err := storage.copyStagingToPermanent(ctx, staging, permanent); err != nil {
-		t.Fatal(err)
-	}
 	if err := storage.deleteStagingObject(ctx, staging); err != nil {
 		t.Fatal(err)
 	}
@@ -113,18 +110,16 @@ func TestS3StorageOperationsAndPresignedCapabilities(t *testing.T) {
 		t.Fatalf("GET capability has missing signed response controls: %q err=%v", readURL, err)
 	}
 
-	var sawConditionalPut, sawConditionalCopy bool
+	var sawConditionalPut bool
 	for _, request := range requests {
 		if request.Method != http.MethodPut {
 			continue
 		}
-		if request.Header.Get("X-Amz-Copy-Source") != "" {
-			sawConditionalCopy = request.Header.Get("If-None-Match") == "*"
-		} else if strings.HasPrefix(request.URL.Path, "/media/permanent/") {
+		if strings.HasPrefix(request.URL.Path, "/media/permanent/") {
 			sawConditionalPut = request.Header.Get("If-None-Match") == "*"
 		}
 	}
-	if !sawConditionalPut || !sawConditionalCopy {
-		t.Fatalf("immutable object operations must be conditional: put=%v copy=%v", sawConditionalPut, sawConditionalCopy)
+	if !sawConditionalPut {
+		t.Fatal("immutable PutObject must be conditional")
 	}
 }
