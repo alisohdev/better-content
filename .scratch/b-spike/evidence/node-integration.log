@@ -1,0 +1,10 @@
+
+ RUN  v4.1.11 /app
+
+ ✓ src/modules/workspace/application/default-workspace.integration.test.ts (4 tests) 347ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  19:12:00
+   Duration  1.17s (transform 148ms, setup 26ms, import 665ms, tests 347ms, environment 0ms)
+

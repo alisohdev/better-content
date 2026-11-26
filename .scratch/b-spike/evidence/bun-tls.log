@@ -1,0 +1,8 @@
+DNSException: getaddrinfo EAI_AGAIN media.spike.invalid
+  syscall: "getaddrinfo",
+    errno: -3001,
+ hostname: "media.spike.invalid",
+     code: "EAI_AGAIN"
+
+
+Bun v1.4.4 (Linux x64)

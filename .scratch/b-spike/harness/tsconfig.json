@@ -1,0 +1,13 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "incremental": false,
+    "paths": {
+      "@/lib/auth/server": ["./auth-boundary.mts"],
+      "@/*": ["../../../src/*"],
+      "server-only": ["../../../src/test/server-only.ts"]
+    }
+  },
+  "include": ["./*.mts"]
+}

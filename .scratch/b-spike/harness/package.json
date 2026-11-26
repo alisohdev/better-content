@@ -1,0 +1,13 @@
+{
+  "name": "better-content-runtime-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "2.1.11",
+    "hono": "4.13.22",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "yaml": "2.9.1"
+  }
+}

@@ -1,0 +1,10 @@
+
+ RUN  v4.1.11 /app
+
+ ✓ src/modules/assets/infrastructure/controlled-remote-acquisition.test.ts (23 tests) 16ms
+
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+   Start at  19:11:59
+   Duration  283ms (transform 61ms, setup 24ms, import 120ms, tests 16ms, environment 0ms)
+
